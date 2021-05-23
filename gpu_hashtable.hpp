@@ -18,14 +18,24 @@ using namespace std;
  */
 class GpuHashTable
 {
-	public:
-		GpuHashTable(int size);
-		void reshape(int sizeReshape);
+private: 
+	typedef struct {
+		uint32_t key, value;
+	} Entry, *HashMap;
+
+	HashMap hashMap;
+	unsigned long capacity;
+	unsigned long entries;
+
+public:
+	GpuHashTable(int size);
+	~GpuHashTable();
+
+	void reshape(int sizeReshape);
 		
-		bool insertBatch(int *keys, int* values, int numKeys);
-		int* getBatch(int* key, int numItems);
+	bool insertBatch(int *keys, int* values, int numKeys);
+	int* getBatch(int* key, int numItems);
 	
-		~GpuHashTable();
 };
 
 #endif

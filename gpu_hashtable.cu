@@ -9,28 +9,40 @@
 
 using namespace std;
 
-/*
-Allocate CUDA memory only through glbGpuAllocator
-cudaMalloc -> glbGpuAllocator->_cudaMalloc
-cudaMallocManaged -> glbGpuAllocator->_cudaMallocManaged
-cudaFree -> glbGpuAllocator->_cudaFree
-*/
+static uint32_t hash(uint32_t key) {
+	unsigned long hash = 5381;
+	int c;
+
+	while (c = key % 10) {
+		hash = ((hash << 5) + hash) + c; /* hash * 33  + c */
+
+		key /= 10;
+		if (key == 0)
+			break;
+	}
+
+	return hash;
+}
 
 /**
  * Function constructor GpuHashTable
  * Performs init
  * Example on using wrapper allocators _cudaMalloc and _cudaFree
  */
-GpuHashTable::GpuHashTable(int size) {
-	int* myRandomAllocation = nullptr;
-	glbGpuAllocator->_cudaMalloc((void **) &myRandomAllocation, 16 * sizeof(int));
-	glbGpuAllocator->_cudaFree(myRandomAllocation);
+GpuHashTable::GpuHashTable(int size) 
+	: capacity(size), size(0)
+{
+	cudaError_t err = glbGpuAllocator->_cudaMalloc((void **) &hashMap, this->capacity * sizeof(Entry));
+	if (err != cudaSuccess) {
+		fprinf(stderr, "cudaMalloc fail");
+	}
 }
 
 /**
  * Function desctructor GpuHashTable
  */
 GpuHashTable::~GpuHashTable() {
+	glbGpuAllocator->_cudaFree((void *) hashMap);
 }
 
 /**
