@@ -18,6 +18,9 @@ using namespace std;
  */
 typedef struct {
 	uint32_t key, value;
+
+	Entry(uint32_t k, uint32_t v) : key(k), value(v) {}
+	Entry() : key(0), value(0) {}
 } Entry, * HashMap;
 
 /**

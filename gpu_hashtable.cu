@@ -20,6 +20,8 @@ __device__ uint32_t hash(uint32_t key);
 // Function to determine number of blocks and threads
 __host__ void getBlocksThreads(int *blocks, int *threads, int entries);
 
+// Function for reshaping hashmap
+__global__ void reshape(HashMap newHM, HashMap oldHM);
 
 /******** HashMap Methods ********/
 
@@ -48,9 +50,11 @@ GpuHashTable::~GpuHashTable() {
  * Performs resize of the hashtable based on load factor
  */
 void GpuHashTable::reshape(int numBucketsReshape) {
+	/* Getting number of blocks and threads */
 	int blocks, threads;
 	getBlocksThreads(&blocks, &threads, capacity);
 
+	/* Alloccing new hashmap */
 	HashMap newHashMap;
 	glbGpuAllocator->_cudaMalloc((void **) &newHashMap, numBucketsReshape * sizeof(Entry));
 	cudaCheckError();
