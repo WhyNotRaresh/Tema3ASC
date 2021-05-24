@@ -32,8 +32,8 @@ class GpuHashTable
 {
 private: 
 	HashMap hashMap;
-	unsigned long capacity;
-	unsigned long entries;
+	int capacity;
+	int entries;
 
 public:
 	GpuHashTable(int size);

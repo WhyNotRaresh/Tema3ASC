@@ -20,9 +20,11 @@ __device__ uint32_t hash(uint32_t key);
 // Function to determine number of blocks and threads
 __host__ void getBlocksThreads(int *blocks, int *threads, int entries);
 
+// Function to init hashmap struct
+__global__ void initHashMap(HashMap hashMap, int capacity);
+
 // Function for reshaping hashmap
-__global__ void reshape(HashMap newHM, unsigned long newCap,
-							HashMap oldHM, unsigned long oldCap);
+__global__ void reshape(HashMap newHM, int newCap, HashMap oldHM, int oldCap);
 
 
 /******** HashMap Methods ********/
@@ -41,8 +43,9 @@ GpuHashTable::GpuHashTable(int size)
 	glbGpuAllocator->_cudaMalloc((void **) &hashMap, total_bytes);
 	cudaCheckError();
 
-	cudaMemset((void *) hashMap, 255, total_bytes);
-	cudaCheckError();
+	int blocks, threads;
+	getBlocksThreads(&blocks, &threads, capacity);
+	initHashMap<<<blocks, threads>>>(hashMap, capacity);
 }
 
 /**
@@ -58,9 +61,7 @@ GpuHashTable::~GpuHashTable() {
  * Performs resize of the hashtable based on load factor
  */
 void GpuHashTable::reshape(int numBucketsReshape) {
-	/* Getting number of blocks and threads */
 	int blocks, threads;
-	getBlocksThreads(&blocks, &threads, capacity);
 
 	/* Alloccing new hashmap */
 	HashMap newHashMap;
@@ -69,10 +70,12 @@ void GpuHashTable::reshape(int numBucketsReshape) {
 	glbGpuAllocator->_cudaMalloc((void **) &newHashMap, total_bytes);
 	cudaCheckError();
 
-	cudaMemset((void *) newHashMap, 255, total_bytes);
-	cudaCheckError();
+	getBlocksThreads(&blocks, &threads, numBucketsReshape);
+	initHashMap<<<blocks, threads>>>(newHashMap, capacity);
 
 	/* Writing to new hashmap */
+	getBlocksThreads(&blocks, &threads, capacity);
+
 	reshape<<<blocks, threads>>>(newHashMap, numBucketsReshape, hashMap, capacity);
 	cudaDeviceSynchronize();
 	cudaCheckError();
@@ -126,8 +129,16 @@ __host__ void getBlocksThreads(int *blocks, int *threads, int entries) {
 	*blocks = entries / (*threads) + ((entries % (*threads) == 0 ) ? 0 : 1);
 }
 
-__global__ void reshape(HashMap newHM, unsigned long newCap,
-							HashMap oldHM, unsigned long oldCap) {
+__global__ void initHashMap(HashMap hashMap, int capacity) {
+	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+	if (idx < capacity) {
+		Entry basic_entry();
+		hashMap[idx] = basic_entry;
+	}
+}
+
+__global__ void reshape(HashMap newHM, int newCap, HashMap oldHM, int oldCap) {
 	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if (idx > oldCap) {
