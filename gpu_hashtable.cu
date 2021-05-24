@@ -4,21 +4,25 @@
 #include <ctime>
 #include <sstream>
 #include <string>
+#include <stdio>
+
 #include "test_map.hpp"
 #include "gpu_hashtable.hpp"
 
 using namespace std;
 
+/**
+ * Function for Hashing 32-bit integer
+ */
 static uint32_t hash(uint32_t key) {
 	unsigned long hash = 5381;
 	int c;
 
-	while (c = key % 10) {
+	while (key != 0) {
+		c = key % 10;
 		hash = ((hash << 5) + hash) + c; /* hash * 33  + c */
 
 		key /= 10;
-		if (key == 0)
-			break;
 	}
 
 	return hash;
@@ -30,11 +34,11 @@ static uint32_t hash(uint32_t key) {
  * Example on using wrapper allocators _cudaMalloc and _cudaFree
  */
 GpuHashTable::GpuHashTable(int size) 
-	: capacity(size), size(0)
+	: capacity(size), entries(0)
 {
 	cudaError_t err = glbGpuAllocator->_cudaMalloc((void **) &hashMap, this->capacity * sizeof(Entry));
 	if (err != cudaSuccess) {
-		fprinf(stderr, "cudaMalloc fail");
+		fprinf(stderr, "cudaMalloc fail on init");
 	}
 }
 
