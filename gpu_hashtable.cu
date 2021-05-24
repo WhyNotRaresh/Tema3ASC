@@ -10,35 +10,19 @@
 
 using namespace std;
 
-/**
- * Function for Hashing 32-bit integer
- */
-__device__ uint32_t hash(uint32_t key) {
-	unsigned long hash = 5381;
-	int c;
 
-	while (key != 0) {
-		c = key % 10;
-		hash = ((hash << 5) + hash) + c; /* hash * 33  + c */
-
-		key /= 10;
-	}
-
-	return hash;
-}
+/******** Declaring Cuda Functions ********/
 
 
-/**
- * Function to determine number of blocks and threads
- */
-__host__ void getBlockThreads(int *blocks, int *threads, int entries) {
-	cudaDeviceProp devProps;
-	cudaGetDeviceProperties(&devProps, 0);
-	cudaCheckError();
+// Function for Hashing 32-bit integer
+__device__ uint32_t hash(uint32_t key);
 
-	*threads = devProps.maxThreadsPerBlock;
-	*blocks = entries / (*threads) + ((entries % (*threads) == 0 ) ? 0 : 1);
-}
+// Function to determine number of blocks and threads
+__host__ void getBlocksThreads(int *blocks, int *threads, int entries);
+
+
+/******** HashMap Methods ********/
+
 
 /**
  * Function constructor GpuHashTable
@@ -64,6 +48,12 @@ GpuHashTable::~GpuHashTable() {
  * Performs resize of the hashtable based on load factor
  */
 void GpuHashTable::reshape(int numBucketsReshape) {
+	int blocks, threads;
+	getBlocksThreads(&blocks, &threads, capacity);
+
+	HashMap newHashMap;
+	glbGpuAllocator->_cudaMalloc((void **) &newHashMap, numBucketsReshape * sizeof(Entry));
+	cudaCheckError();
 }
 
 /**
@@ -80,4 +70,31 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
  */
 int* GpuHashTable::getBatch(int* keys, int numKeys) {
 	return NULL;
+}
+
+
+/******** Defining Cuda Functions ********/
+
+
+__device__ uint32_t hash(uint32_t key) {
+	unsigned long hash = 5381;
+	int c;
+
+	while (key != 0) {
+		c = key % 10;
+		hash = ((hash << 5) + hash) + c; /* hash * 33  + c */
+
+		key /= 10;
+	}
+
+	return hash;
+}
+
+__host__ void getBlocksThreads(int *blocks, int *threads, int entries) {
+	cudaDeviceProp devProps;
+	cudaGetDeviceProperties(&devProps, 0);
+	cudaCheckError();
+
+	*threads = devProps.maxThreadsPerBlock;
+	*blocks = entries / (*threads) + ((entries % (*threads) == 0 ) ? 0 : 1);
 }
