@@ -14,7 +14,7 @@ using namespace std;
 /**
  * Function for Hashing 32-bit integer
  */
-static uint32_t hash(uint32_t key) {
+__device__ uint32_t hash(uint32_t key) {
 	unsigned long hash = 5381;
 	int c;
 
@@ -29,6 +29,13 @@ static uint32_t hash(uint32_t key) {
 }
 
 /**
+ * Function for error printing
+ */
+__global__ void print_err(const char* error) {
+	fprintf(stderr, error);
+}
+
+/**
  * Function constructor GpuHashTable
  * Performs init
  * Example on using wrapper allocators _cudaMalloc and _cudaFree
@@ -38,7 +45,7 @@ GpuHashTable::GpuHashTable(int size)
 {
 	cudaError_t err = glbGpuAllocator->_cudaMalloc((void **) &hashMap, this->capacity * sizeof(Entry));
 	if (err != cudaSuccess) {
-		fprinf(stderr, "cudaMalloc fail on init");
+		print_err<<<1, 1>>>("cudaMalloc error on init")
 	}
 }
 
