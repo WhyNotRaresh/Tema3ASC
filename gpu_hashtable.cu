@@ -20,9 +20,6 @@ __device__ uint32_t hash(uint32_t key);
 // Function to determine number of blocks and threads
 __host__ void getBlocksThreads(int *blocks, int *threads, int entries);
 
-// Function to init hashmap struct
-__global__ void initHashMap(HashMap hashMap, int capacity);
-
 // Function for reshaping hashmap
 __global__ void reshapeHashMap(HashMap newHM, HashMap oldHM, int newCap, int oldCap);
 
@@ -43,9 +40,8 @@ GpuHashTable::GpuHashTable(int size)
 	glbGpuAllocator->_cudaMalloc((void **) &hashMap, total_bytes);
 	cudaCheckError();
 
-	int blocks, threads;
-	getBlocksThreads(&blocks, &threads, capacity);
-	initHashMap<<<blocks, threads>>>(hashMap, capacity);
+	cudaMemset((void *) hashMap, 255, total_bytes);
+	cudaCheckError();
 }
 
 /**
@@ -61,7 +57,6 @@ GpuHashTable::~GpuHashTable() {
  * Performs resize of the hashtable based on load factor
  */
 void GpuHashTable::reshape(int numBucketsReshape) {
-	int blocks, threads;
 
 	/* Alloccing new hashmap */
 	HashMap newHashMap;
@@ -70,10 +65,11 @@ void GpuHashTable::reshape(int numBucketsReshape) {
 	glbGpuAllocator->_cudaMalloc((void **) &newHashMap, total_bytes);
 	cudaCheckError();
 
-	getBlocksThreads(&blocks, &threads, numBucketsReshape);
-	initHashMap<<<blocks, threads>>>(newHashMap, capacity);
+	cudaMemset((void *) hashMap, 255, total_bytes);
+	cudaCheckError();
 
 	/* Writing to new hashmap */
+	int blocks, threads;
 	getBlocksThreads(&blocks, &threads, capacity);
 
 	reshapeHashMap<<<blocks, threads>>>(newHashMap, hashMap, numBucketsReshape, capacity);
@@ -127,14 +123,6 @@ __host__ void getBlocksThreads(int *blocks, int *threads, int entries) {
 
 	*threads = devProps.maxThreadsPerBlock;
 	*blocks = entries / (*threads) + ((entries % (*threads) == 0 ) ? 0 : 1);
-}
-
-__global__ void initHashMap(HashMap hashMap, int capacity) {
-	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-
-	if (idx < capacity) {
-		hashMap[idx] = Entry();
-	}
 }
 
 __global__ void reshapeHashMap(HashMap newHM, HashMap oldHM, int newCap, int oldCap) {
