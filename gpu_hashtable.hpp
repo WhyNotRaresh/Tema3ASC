@@ -16,9 +16,10 @@ using namespace std;
 /**
  * Hashmap entry type
  */
-typedef struct {
+typedef struct Entry {
 	uint32_t key, value;
 
+	Entry() : key(0), vlaue(0) {}
 	Entry(uint32_t k, uint32_t v) : key(k), value(v) {}
 } Entry, * HashMap;
 
