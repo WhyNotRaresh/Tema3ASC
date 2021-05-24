@@ -24,7 +24,7 @@ __host__ void getBlocksThreads(int *blocks, int *threads, int entries);
 __global__ void initHashMap(HashMap hashMap, int capacity);
 
 // Function for reshaping hashmap
-__global__ void reshape(HashMap newHM, int newCap, HashMap oldHM, int oldCap);
+__global__ void reshape(HashMap newHM, HashMap oldHM, int newCap, int oldCap);
 
 
 /******** HashMap Methods ********/
@@ -76,7 +76,7 @@ void GpuHashTable::reshape(int numBucketsReshape) {
 	/* Writing to new hashmap */
 	getBlocksThreads(&blocks, &threads, capacity);
 
-	reshape<<<blocks, threads>>>(newHashMap, numBucketsReshape, hashMap, capcity);
+	reshape<<<blocks, threads>>>(newHashMap, hashMap, numBucketsReshape, capacity);
 	cudaDeviceSynchronize();
 	cudaCheckError();
 	
@@ -137,7 +137,7 @@ __global__ void initHashMap(HashMap hashMap, int capacity) {
 	}
 }
 
-__global__ void reshape(HashMap newHM, int newCap, HashMap oldHM, int oldCap) {
+__global__ void reshape(HashMap newHM, HashMap oldHM, int newCap, int oldCap) {
 	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if (idx > oldCap) {
