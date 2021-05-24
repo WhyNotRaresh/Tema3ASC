@@ -41,7 +41,7 @@ GpuHashTable::GpuHashTable(int size)
 	glbGpuAllocator->_cudaMalloc((void **) &hashMap, total_bytes);
 	cudaCheckError();
 
-	cudaMemset((void *) hashmap, 255, total_bytes);
+	cudaMemset((void *) hashMap, 255, total_bytes);
 	cudaCheckError();
 }
 
@@ -64,14 +64,16 @@ void GpuHashTable::reshape(int numBucketsReshape) {
 
 	/* Alloccing new hashmap */
 	HashMap newHashMap;
-	glbGpuAllocator->_cudaMalloc((void **) &newHashMap, numBucketsReshape * sizeof(Entry));
+	size_t total_bytes =  numBucketsReshape * sizeof(Entry);
+
+	glbGpuAllocator->_cudaMalloc((void **) &newHashMap, total_bytes);
 	cudaCheckError();
 
-	cudaMemset((void *) hashmap, 255, total_bytes);
+	cudaMemset((void *) newHashMap, 255, total_bytes);
 	cudaCheckError();
 
 	/* Writing to new hashmap */
-	reshape<<<blocks, threads>>>(newHashMap, numBucketsReshape, hashmap, capacity);
+	reshape<<<blocks, threads>>>(newHashMap, numBucketsReshape, hashMap, capacity);
 	cudaDeviceSynchronize();
 	cudaCheckError();
 	
