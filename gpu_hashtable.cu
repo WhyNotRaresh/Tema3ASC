@@ -21,7 +21,9 @@ __device__ uint32_t hash(uint32_t key);
 __host__ void getBlocksThreads(int *blocks, int *threads, int entries);
 
 // Function for reshaping hashmap
-__global__ void reshape(HashMap newHM, HashMap oldHM);
+__global__ void reshape(HashMap newHM, unsigned long newCap,
+							HashMap oldHM, unsigned long oldCap);
+
 
 /******** HashMap Methods ********/
 
@@ -34,7 +36,12 @@ __global__ void reshape(HashMap newHM, HashMap oldHM);
 GpuHashTable::GpuHashTable(int size) 
 	: capacity(size), entries(0)
 {
-	glbGpuAllocator->_cudaMalloc((void **) &hashMap, this->capacity * sizeof(Entry));
+	size_t total_bytes = this->capacity * sizeof(Entry);
+
+	glbGpuAllocator->_cudaMalloc((void **) &hashMap, total_bytes);
+	cudaCheckError();
+
+	cudaMemset((void *) hashmap, 255, total_bytes);
 	cudaCheckError();
 }
 
@@ -43,6 +50,7 @@ GpuHashTable::GpuHashTable(int size)
  */
 GpuHashTable::~GpuHashTable() {
 	glbGpuAllocator->_cudaFree((void *) hashMap);
+	cudaCheckError();
 }
 
 /**
@@ -58,6 +66,19 @@ void GpuHashTable::reshape(int numBucketsReshape) {
 	HashMap newHashMap;
 	glbGpuAllocator->_cudaMalloc((void **) &newHashMap, numBucketsReshape * sizeof(Entry));
 	cudaCheckError();
+
+	cudaMemset((void *) hashmap, 255, total_bytes);
+	cudaCheckError();
+
+	/* Writing to new hashmap */
+	reshape<<<blocks, threads>>>(newHashMap, numBucketsReshape, hashmap, capacity);
+	cudaDeviceSynchronize();
+	cudaCheckError();
+	
+	glbGpuAllocator->_cudaFree((void *) hashMap);
+	cudaCheckError();
+	hashMap = newHashMap;
+	capacity = numBucketsReshape;
 }
 
 /**
@@ -101,4 +122,15 @@ __host__ void getBlocksThreads(int *blocks, int *threads, int entries) {
 
 	*threads = devProps.maxThreadsPerBlock;
 	*blocks = entries / (*threads) + ((entries % (*threads) == 0 ) ? 0 : 1);
+}
+
+__global__ void reshape(HashMap newHM, unsigned long newCap,
+							HashMap oldHM, unsigned long oldCap) {
+	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+	if (idx > oldCap) {
+		return;
+	}
+
+
 }
