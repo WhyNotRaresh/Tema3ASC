@@ -14,15 +14,18 @@ using namespace std;
 }
 
 /**
+ * Hashmap entry type
+ */
+typedef struct {
+	uint32_t key, value;
+} Entry, * HashMap;
+
+/**
  * Class GpuHashTable to implement functions
  */
 class GpuHashTable
 {
 private: 
-	typedef struct {
-		uint32_t key, value;
-	} Entry, *HashMap;
-
 	HashMap hashMap;
 	unsigned long capacity;
 	unsigned long entries;

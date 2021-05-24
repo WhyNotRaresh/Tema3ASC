@@ -27,6 +27,19 @@ __device__ uint32_t hash(uint32_t key) {
 	return hash;
 }
 
+
+/**
+ * Function to determine number of blocks and threads
+ */
+__host__ void getBlockThreads(int *blocks, int *threads, int entries) {
+	cudaDeviceProp devProps;
+	cudaGetDeviceProperties(&devProps, 0);
+	cudaCheckError();
+
+	*threads = devProps.maxThreadsPerBlock;
+	*blocks = entries / (*threads) + ((entries % (*threads) == 0 ) ? 0 : 1);
+}
+
 /**
  * Function constructor GpuHashTable
  * Performs init
