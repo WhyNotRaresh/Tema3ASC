@@ -76,7 +76,7 @@ void GpuHashTable::reshape(int numBucketsReshape) {
 	/* Writing to new hashmap */
 	getBlocksThreads(&blocks, &threads, capacity);
 
-	reshape<<<blocks, threads>>>(newHashMap, numBucketsReshape, hashMap, capacity);
+	reshape<<<blocks, threads>>>(newHashMap, numBucketsReshape, hashMap, capcity);
 	cudaDeviceSynchronize();
 	cudaCheckError();
 	
@@ -133,8 +133,7 @@ __global__ void initHashMap(HashMap hashMap, int capacity) {
 	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if (idx < capacity) {
-		Entry basic_entry();
-		hashMap[idx] = basic_entry;
+		hashMap[idx] = Entry();
 	}
 }
 

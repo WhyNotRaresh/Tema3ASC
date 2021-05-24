@@ -1,8 +1,6 @@
 #ifndef _HASHCPU_
 #define _HASHCPU_
 
-#include <vector>
-
 using namespace std;
 
 #define cudaCheckError() { \
