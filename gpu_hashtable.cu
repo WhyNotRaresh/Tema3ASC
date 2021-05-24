@@ -4,7 +4,6 @@
 #include <ctime>
 #include <sstream>
 #include <string>
-#include <stdio.h>
 
 #include "test_map.hpp"
 #include "gpu_hashtable.hpp"
@@ -29,13 +28,6 @@ __device__ uint32_t hash(uint32_t key) {
 }
 
 /**
- * Function for error printing
- */
-__global__ void print_err(const char* error) {
-	fprintf(stderr, error);
-}
-
-/**
  * Function constructor GpuHashTable
  * Performs init
  * Example on using wrapper allocators _cudaMalloc and _cudaFree
@@ -43,10 +35,8 @@ __global__ void print_err(const char* error) {
 GpuHashTable::GpuHashTable(int size) 
 	: capacity(size), entries(0)
 {
-	cudaError_t err = glbGpuAllocator->_cudaMalloc((void **) &hashMap, this->capacity * sizeof(Entry));
-	if (err != cudaSuccess) {
-		print_err<<<1, 1>>>("cudaMalloc error on init")
-	}
+	glbGpuAllocator->_cudaMalloc((void **) &hashMap, this->capacity * sizeof(Entry));
+	cudaCheckError();
 }
 
 /**
