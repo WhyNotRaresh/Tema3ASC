@@ -4,7 +4,7 @@
 #include <ctime>
 #include <sstream>
 #include <string>
-#include <stdio>
+#include <stdio.h>
 
 #include "test_map.hpp"
 #include "gpu_hashtable.hpp"
