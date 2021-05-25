@@ -198,7 +198,7 @@ __global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int *upd
 	}
 
 	// se calculeaza hashul initial
-	insertedEntry = newEntry[idx];
+	insertedEntry = newEntries[idx];
 	hash = hashKey(insertedEntry.key) % capacity;
 
 	// Se parcurg indecsii in ordine incepand de la `hash` si se cauta o pozitie
@@ -215,7 +215,7 @@ __global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int *upd
 		{
 			if (oldKey == insertedEntry.key)
 			{
-				atomicAdd(numUpdates, 1);
+				atomicAdd(updates, 1);
 			}
 
 			hashMap[hash].value = insertedEntry.value;
