@@ -178,7 +178,7 @@ __global__ void reshapeHashMap(HashTable newHM, HashTable oldHM, int newCap, int
 		uint32_t hash = hashKey(oldHM[idx].key) % newCap;
 
 		while(atomicCAS(&(newHM[hash].key), KEY_INVALID, oldHM[idx].key) == KEY_INVALID) {
-			hash = (hash + 1) % newCap;
+			hash = (hash + 1) % capacity;
 		}
 
 		newHM[hash].value = oldHM[idx].value;
@@ -186,38 +186,21 @@ __global__ void reshapeHashMap(HashTable newHM, HashTable oldHM, int newCap, int
 }
 
 __global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int *updates, int noEntries, int capacity) {
-	int oldKey;
-	bool inserted = false;
-	size_t hash;
 	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-	if (idx > capacity)
-	{
-		return;
-	}
+	if (idx < noEntries && idx < capacity) {
+		uint32_t hash = hashKey(newEntries[idx].key) % capacity;
+		uint32_t oldKey = atomicCAS(&(hashMap[hash].key), KEY_INVALID, newEntries[idx].key);
 
-	// se calculeaza hashul initial
-	hash = hashKey(newEntries[idx].key) % capacity;
-
-	// Se parcurg indecsii in ordine incepand de la `hash` si se cauta o pozitie
-	// libera sau pe care se afla aceeasi cheie (caz de update)
-	for (; !inserted; hash = (hash + 1) % capacity)
-	{
-		// Cheia veche se schimba cu cea noua doar daca aceasta era KEY_INVALID
-		// (0).
-		oldKey = atomicCAS(&hashMap[hash].key, KEY_INVALID, newEntries[idx].key);
-
-		// In situatia in care cheia era `KEY_INVALID` (locul era liber) sau era
-		// aceeasi cu noua cheie (update), valoarea se modifica
-		if (KEY_INVALID == oldKey || newEntries[idx].key == oldKey)
-		{
-			if (oldKey == newEntries[idx].key)
-			{
-				atomicAdd(updates, 1);
-			}
-
-			hashMap[hash].value = newEntries[idx].value;
-			inserted = true;
+		while(oldKey != KEY_INVALID && oldKey != newEntries[idx].key) {
+			hash = (hash + 1) % capacity;
+			oldKey = atomicCAS(&(hashMap[hash].key), KEY_INVALID, newEntries[idx].key);
 		}
+
+		if (oldKey == newEntries[idx].key) {
+			atomicAdd(updates, 1);
+		}
+
+		hashMap[hash].value = newEntries[idx].value;
 	}
 }
