@@ -26,6 +26,9 @@ __global__ void reshapeHashMap(HashTable newHM, HashTable oldHM, int newCap, int
 // Function for inserting into hashmap
 __global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int *updates, int noEntries, int capacity);
 
+// Function for searching the hashmap
+__global__ void getFromHashMap(HashTable hashMap, int *keys, int *retValues, int noKeys, int capacity);
+
 
 /******** HashMap Methods ********/
 
@@ -110,7 +113,8 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
 	printf("B\n");
 	glbGpuAllocator->_cudaMalloc((void **) &deviceEntries, total_bytes);
 	cudaCheckError();
-	cudaMemcpy(deviceEntries, hostEntries, total_bytes, cudaMemcpyHostToDevice);
+	//cudaMemcpy(deviceEntries, hostEntries, total_bytes, cudaMemcpyHostToDevice);
+	cudaMemset(deviceEntries, 0, total_bytes);
 	cudaCheckError();
 	printf("C\n");
 
@@ -192,11 +196,7 @@ __global__ void reshapeHashMap(HashTable newHM, HashTable oldHM, int newCap, int
 }
 
 __global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int *updates, int noEntries, int capacity) {
-	printf("F\n");
-
 	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-
-	printf("hello from block %d thread %d\n", blockIdx.x, threadIdx.x);
 
 	if (idx < noEntries) {
 		uint32_t hash = hashKey(newEntries[idx].key) % capacity;
@@ -212,5 +212,13 @@ __global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int *upd
 		}
 
 		hashMap[hash].value = newEntries[idx].value;
+	}
+}
+
+__global__ void getFromHashMap(HashTable hashMap, int *keys, int *retValues, int noKeys, int capacity) {
+	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+	if (idx < capacity) {
+		
 	}
 }
