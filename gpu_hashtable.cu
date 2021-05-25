@@ -113,9 +113,9 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
 
 	/* Reshaping HashMap */
 	if ((entries + numKeys) / ((float) capacity) >= 0.9f) {
-		prinf("AAAAAAA");
+		printf("AAAAAAA");
 		this->reshape((int) ((entries + numKeys) / 0.8f));
-		prinf("BBBBBBB");
+		printf("BBBBBBB");
 	}
 
 	/* Number of updated keys */
@@ -180,7 +180,7 @@ __global__ void reshapeHashMap(HashTable newHM, HashTable oldHM, int newCap, int
 		uint32_t hash = hashKey(oldHM[idx].key) % newCap;
 
 		while(atomicCAS(&(newHM[hash].key), KEY_INVALID, oldHM[idx].key) == KEY_INVALID) {
-			hash = (hash + 1) % capacity;
+			hash = (hash + 1) % newCap;
 		}
 
 		newHM[hash].value = oldHM[idx].value;
