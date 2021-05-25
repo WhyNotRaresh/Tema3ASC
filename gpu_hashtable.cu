@@ -5,212 +5,318 @@
 #include <sstream>
 #include <string>
 
-#include "test_map.hpp"
 #include "gpu_hashtable.hpp"
 
-using namespace std;
+#define MAX_LOAD_FACTOR		.9f
+#define MIN_LOAD_FACTOR		.85f
 
 
-/******** Declaring Cuda Functions ********/
-
-
-// Function for Hashing 32-bit integer
-__device__ uint32_t hashKey(uint32_t key);
-
-// Function to determine number of blocks and threads
-__host__ void getBlocksThreads(int *blocks, int *threads, int entries);
-
-// Function for reshaping hashmap
-static __global__ void reshapeHashMap(HashTable newHM, HashTable oldHM,
-	int newCap, int oldCap);
-
-// Function for inserting into hashmap
-static __global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries,
-	int *updates, int noEntries, int capacity);
-
-
-/******** HashMap Methods ********/
-
-
-/**
- * Function constructor GpuHashTable
- * Performs init
- * Example on using wrapper allocators _cudaMalloc and _cudaFree
- */
-GpuHashTable::GpuHashTable(int size) 
-	: capacity(size), entries(0)
+// Calculeaza hash-ul unei chei prin algoritmul descris aici
+// https://gist.github.com/badboy/6267743
+// Dintre functiile propuse de Bob Jenkins, aceasta avea
+// performantele cele mai bune
+static __device__ size_t computeHash(int key)
 {
-	size_t total_bytes = this->capacity * sizeof(Entry);
+	size_t hash = (size_t)key;
 
-	glbGpuAllocator->_cudaMalloc((void **) &hashMap, total_bytes);
-	cudaCheckError();
+	hash = ~hash + (hash << 15);
+	hash = hash ^ (hash >> 12);
+	hash = hash + (hash << 2);
+	hash = hash ^ (hash >> 4);
+	hash = (hash + (hash << 3)) + (hash << 11);
+	hash = hash ^ (hash >> 16);
 
-	cudaMemset((void *) hashMap, 0, total_bytes);
-	cudaCheckError();
+	return hash;
 }
 
-/**
- * Function desctructor GpuHashTable
- */
-GpuHashTable::~GpuHashTable() {
-	glbGpuAllocator->_cudaFree((void *) hashMap);
-	cudaCheckError();
+// Kernelul se ocupa cu inserarea unui singur element in hahstable folosind
+// tehnica "linear probing".
+static __global__ void kernel_insert(Entry* hashMap, int* devKeys,
+	int* devValues, int* numUpdates, size_t capacity)
+{
+	int oldKey;
+	bool inserted = false;
+	size_t hash;
+	Entry insertedEntry;
+	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+	if (idx > capacity)
+	{
+		return;
+	}
+
+	// se calculeaza hashul initial
+	hash = computeHash(devKeys[idx]) % capacity;
+	insertedEntry = {devKeys[idx], devValues[idx]};
+
+	// Se parcurg indecsii in ordine incepand de la `hash` si se cauta o pozitie
+	// libera sau pe care se afla aceeasi cheie (caz de update)
+	for (; !inserted; hash = (hash + 1) % capacity)
+	{
+		// Cheia veche se schimba cu cea noua doar daca aceasta era KEY_INVALID
+		// (0).
+		oldKey = atomicCAS(&hashMap[hash].key, KEY_INVALID, insertedEntry.key);
+
+		// In situatia in care cheia era `KEY_INVALID` (locul era liber) sau era
+		// aceeasi cu noua cheie (update), valoarea se modifica
+		if (KEY_INVALID == oldKey || insertedEntry.key == oldKey)
+		{
+			if (oldKey == insertedEntry.key)
+			{
+				atomicAdd(numUpdates, 1);
+			}
+
+			hashMap[hash].value = insertedEntry.value;
+			inserted = true;
+		}
+	}
 }
 
-/**
- * Function reshape
- * Performs resize of the hashtable based on load factor
+// Kernelul cauta sa puna in vectorul `values` valoarea corespunzatoare cheii
+// indexului sau
+static __global__ void kernel_search(Entry* hashMap, int* devKeys, int* values,
+	size_t capacity, int numKeys)
+{
+	bool found = false;
+	size_t hash;
+	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+	if (idx > numKeys)
+	{
+		return;
+	}
+
+	// Initial se calculeaza hashul cheii care ii revine threadului curent.
+	hash = computeHash(devKeys[idx]) % capacity;
+
+	// Exact ca la inert, se parcurg indecsii pe rand, cautandu-se cel la care
+	// este stocata de fapt cheia.
+	for (; !found; hash = (hash + 1) % capacity)
+	{
+		if (devKeys[idx] == hashMap[hash].key)
+		{
+			values[idx] = hashMap[hash].value;
+			found = true;
+		}
+	}
+}
+
+// Kernelul rehashuieste cheia din bucketurile vechi care corespunde fiecarui
+// thread si o plaseaza impreuna cu valoarea sa in noul set de bucketuri.
+// Daca cheia la pozitia care ii corespunde, threadul nu gaseste un element,
+// acesta se termina imediat. 
+static __global__ void kernel_rehash(Entry* resizedHashMap, Entry* hashMap,
+	size_t initialCapacity, int finalCapacity)
+{
+	bool reinserted = false;
+	size_t hash;
+	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+	if (idx > initialCapacity || KEY_INVALID == hashMap[idx].key)
+	{
+		return;
+	}
+
+	hash = computeHash(hashMap[idx].key) % finalCapacity;
+
+	// Se urmeaza aceeasi logica de la `kernel_insert`.
+	for (; !reinserted; hash = (hash + 1) % finalCapacity)
+	{
+		if (KEY_INVALID ==
+			atomicCAS(&resizedHashMap[hash].key, KEY_INVALID, hashMap[idx].key))
+		{
+			resizedHashMap[hash].value = hashMap[idx].value;
+			reinserted = true;
+		}
+	}
+}
+
+/* INIT HASH
  */
-void GpuHashTable::reshape(int numBucketsReshape) {
-	int blocks, threads;
+GpuHashTable::GpuHashTable(int size) :
+	capacity(size), size(0)
+{
+	cudaError_t ret;
+	size_t numBytes = capacity * sizeof(*hashMap);
 
-	/* Alloccing new hashmap */
-	HashTable newHashMap;
-	size_t total_bytes =  numBucketsReshape * sizeof(Entry);
+	ret = cudaMalloc(&hashMap, numBytes);
+	ASSERT(ret, "cudaMalloc(hashMap) failed", exit(errno));
 
-	glbGpuAllocator->_cudaMalloc((void **) &newHashMap, total_bytes);
-	cudaCheckError();
+	// O pozitie din hashtable nu contine un element daca cheia de pe aceasta
+	// este 0
+	ret = cudaMemset(hashMap, 0, numBytes);
+	ASSERT(ret, "cudaMemset(hashMap) failed", exit(errno));
+}
 
-	cudaMemset((void *) newHashMap, 0, total_bytes);
-	cudaCheckError();
+/* DESTROY HASH
+ */
+GpuHashTable::~GpuHashTable()
+{
+	cudaFree(hashMap);
+}
 
-	/* Writing to new hashmap */
-	getBlocksThreads(&blocks, &threads, capacity);
+/* RESHAPE HASH
+ */
+void GpuHashTable::reshape(int numBucketsReshape)
+{
+	cudaError_t ret;
+	int numBlocks;
+	int numThreads;
+	Entry* resizedHashMap;
+	size_t numBytes = numBucketsReshape * sizeof(*resizedHashMap);
 
-	reshapeHashMap<<<blocks, threads>>>(newHashMap, hashMap, numBucketsReshape, capacity);
-	cudaDeviceSynchronize();
-	cudaCheckError();
-	
-	glbGpuAllocator->_cudaFree((void *) hashMap);
-	cudaCheckError();
-	hashMap = newHashMap;
+	ret = cudaMalloc(&resizedHashMap, numBytes);
+	ASSERT(ret, "cudaMalloc(hashMap) failed", exit(errno));
+
+	ret = cudaMemset(resizedHashMap, 0, numBytes);
+	ASSERT(ret, "cudaMemset(resizedHashMap) failed", exit(EXIT_FAILURE));
+
+	ret = getNumBlocksThreads(numBlocks, numThreads, capacity);
+	ASSERT(ret, "getNumBlocksThreads() failed", exit(EXIT_FAILURE));
+
+	kernel_rehash<<<numBlocks, numThreads>>>(resizedHashMap, hashMap,
+		capacity, numBucketsReshape);
+
+	ret = cudaDeviceSynchronize();
+	ASSERT(ret, "cudaDeviceSynchronize() failed", exit(EXIT_FAILURE));
+
+	ret = cudaFree(hashMap);
+	ASSERT(ret, "cudaFree(hashMap) failed", exit(EXIT_FAILURE));
+
+	hashMap = resizedHashMap;
 	capacity = numBucketsReshape;
 }
 
-/**
- * Function insertBatch
- * Inserts a batch of key:value, using GPU and wrapper allocators
+/* INSERT BATCH
  */
-bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
-	int blocks, threads;
-	getBlocksThreads(&blocks, &threads, numKeys);
+bool GpuHashTable::insertBatch(int* keys, int* values, int numKeys)
+{
+	cudaError_t ret;
+	int numBlocks;
+	int numThreads;
+	int* numUpdates;  // cateva chei vor fi update-uri
+	int* devKeys;  // se vor copia cheile pe GPU
+	int* devValues;  // aceeasi copiere se face si pentru valori
+	size_t numBytes = numKeys * sizeof(*devKeys);
 
-	/* Setting device entries */
-	Entry *hostEntries, *deviceEntries;
-	size_t total_bytes = numKeys * sizeof(Entry);
+	ret = cudaMalloc(&devKeys, numBytes);
+	ASSERT(ret, "cudaMalloc(devKeys) failed", return false);
 
-	hostEntries = (Entry *) malloc(total_bytes);
-	if (hostEntries == NULL) {
-		return false;
+	ret = cudaMemcpy(devKeys, keys, numBytes, cudaMemcpyHostToDevice);
+	ASSERT(ret, "cudaMemcpy(devKeys) failed", return false);
+
+	ret = cudaMalloc(&devValues, numBytes);
+	ASSERT(ret, "cudaMalloc(devValues) failed", return false);
+
+	ret = cudaMemcpy(devValues, values, numBytes, cudaMemcpyHostToDevice);
+	ASSERT(ret, "cudaMemcpy(devValues) failed", return false);
+
+	ret = cudaMallocManaged(&numUpdates, sizeof(*numUpdates));
+	ASSERT(ret, "cudaMallocManaged(numUpdates) failed", return false);
+
+	// Hashtable-ul isi modifica dimensiunea cand se depaseste procentajul
+	// maxim de umplere.
+	if ((size + numKeys) / float(capacity) >= MAX_LOAD_FACTOR)
+	{
+		reshape((size + numKeys) / MIN_LOAD_FACTOR);
 	}
-	printf("A\n");
 
-	for (int i = 0; i < numKeys; i++) {
-		hostEntries[i] = Entry(keys[i], values[i]);
-	}
-	
-	printf("B\n");
-	glbGpuAllocator->_cudaMalloc((void **) &deviceEntries, total_bytes);
-	cudaCheckError();
-	cudaMemcpy(deviceEntries, hostEntries, total_bytes, cudaMemcpyHostToDevice);
-	cudaCheckError();
-	printf("C\n");
+	ret = getNumBlocksThreads(numBlocks, numThreads, numKeys);
+	ASSERT(ret, "getNumBlocksThreads() failed", return false);
 
-	/* Reshaping HashMap */
-	if ((entries + numKeys) / ((float) capacity) >= 0.9f) {
-		this->reshape((int) ((entries + numKeys) / 0.8f));
-	}
+	kernel_insert<<<numBlocks, numThreads>>>(hashMap, devKeys, devValues,
+		numUpdates, capacity);
 
-	/* Number of updated keys */
-	int *keyUpdates;
-	glbGpuAllocator->_cudaMallocManaged((void **) &keyUpdates, sizeof(int));
-	cudaCheckError();
+	ret = cudaDeviceSynchronize();
+	ASSERT(ret, "cudaDeviceSynchronize() failed", return false);
 
-	/* Inserting values */
-	printf("D\n");
-	insertIntoHashMap<<<blocks, threads>>>(hashMap, deviceEntries, keyUpdates, numKeys, capacity);
+	// S-au adaugat `numKeys` - cheile care au fost updatate (numUpdates).
+	size += numKeys - *numUpdates;
 
-	cudaDeviceSynchronize();
-	cudaCheckError();
+	ret = cudaFree(devKeys);
+	ASSERT(ret, "cudaFree(devKeys) failed", return false);
 
-	entries += numKeys - (*keyUpdates);
+	ret = cudaFree(devValues);
+	ASSERT(ret, "cudaFree(devValues) failed", return false);
 
-	glbGpuAllocator->_cudaFree(deviceEntries);
-	cudaCheckError();
-	glbGpuAllocator->_cudaFree(keyUpdates);
-	cudaCheckError();
-	free(hostEntries);
+	ret = cudaFree(numUpdates);
+	ASSERT(ret, "cudaFree(numUpdates)", return false);
 
 	return true;
 }
 
-/**
- * Function getBatch
- * Gets a batch of key:value, using GPU
+/* GET BATCH
  */
-int* GpuHashTable::getBatch(int* keys, int numKeys) {
-	return NULL;
+int* GpuHashTable::getBatch(int* keys, int numKeys)
+{
+	cudaError_t ret;
+	int numBlocks;
+	int numThreads;
+	int* devKeys;
+	int* values;
+	size_t numBytes = numKeys * sizeof(*devKeys);
+
+	ret = cudaMalloc(&devKeys, numBytes);
+	ASSERT(ret, "cudaMalloc(devKeys) failed", return NULL);
+
+	ret = cudaMemcpy(devKeys, keys, numBytes, cudaMemcpyHostToDevice);
+	ASSERT(ret, "cudaMemcpy(devKeys) failed", return NULL);
+
+	ret = cudaMallocManaged(&values, numBytes);
+	ASSERT(ret, "cudaMallocManaged(values) failed", return NULL);
+
+	ret = getNumBlocksThreads(numBlocks, numThreads, numKeys);
+	ASSERT(ret, "getNumBlocksThreads() failed", return NULL);
+
+	kernel_search<<<numBlocks, numThreads>>>(hashMap, devKeys, values,
+		capacity, numKeys);
+
+	cudaDeviceSynchronize();
+
+	ret = cudaFree(devKeys);
+	ASSERT(ret, "cudaMalloc(devKeys) failed",);
+
+	return values;
 }
 
+/* GET LOAD FACTOR
+ * num elements / hash total slots elements
+ */
+float GpuHashTable::loadFactor()
+{
+	return (float)size / capacity; // no larger than 1.0f = 100%
+}
 
-/******** Defining Cuda Functions ********/
+cudaError_t GpuHashTable::getNumBlocksThreads(int& numBlocks, int& numThreads,
+	int numItems)
+{
+	cudaError_t ret;
+	cudaDeviceProp devProp;
 
+	// Se presupune ca toate placile sunt de acelasi tip, motiv pentru care se
+	// interogheaza placa 0.
+	ret = cudaGetDeviceProperties(&devProp, 0);
+	ASSERT(ret, "cudaGetDeviceProperties failed", return ret);
 
-__device__ uint32_t hashKey(uint32_t key) {
-	unsigned long hash = 5381;
-	int c;
+	numThreads = devProp.maxThreadsPerBlock;
+	numBlocks = numItems / numThreads;
 
-	while (key != 0) {
-		c = key % 10;
-		hash = ((hash << 5) + hash) + c; /* hash * 33  + c */
-
-		key /= 10;
+	if (numBlocks * numThreads != numItems)
+	{
+		++numBlocks;
 	}
 
-	return (uint32_t) hash;
+	return cudaSuccess;
 }
 
-__host__ void getBlocksThreads(int *blocks, int *threads, int entries) {
-	cudaDeviceProp devProps;
-	cudaGetDeviceProperties(&devProps, 0);
-	cudaCheckError();
+/*********************************************************/
 
-	*threads = devProps.maxThreadsPerBlock;
-	*blocks = entries / (*threads) + ((entries % (*threads) == 0 ) ? 0 : 1);
-}
+#define HASH_INIT GpuHashTable GpuHashTable(1);
+#define HASH_RESERVE(size) GpuHashTable.reshape(size);
 
-static __global__ void reshapeHashMap(HashTable newHM, HashTable oldHM, int newCap, int oldCap) {
-	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+#define HASH_BATCH_INSERT(keys, values, numKeys) GpuHashTable.insertBatch(keys, values, numKeys)
+#define HASH_BATCH_GET(keys, numKeys) GpuHashTable.getBatch(keys, numKeys)
 
-	if (idx < oldCap && idx < oldCap && oldHM[idx].key != KEY_INVALID) {
-		uint32_t hash = hashKey(oldHM[idx].key) % newCap;
+#define HASH_LOAD_FACTOR GpuHashTable.loadFactor()
 
-		while(atomicCAS(&(newHM[hash].key), KEY_INVALID, oldHM[idx].key) == KEY_INVALID) {
-			hash = (hash + 1) % newCap;
-		}
-
-		newHM[hash].value = oldHM[idx].value;
-	}
-}
-
-static __global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int *updates, int noEntries, int capacity) {
-	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-
-	printf("hello from block %d thread %d\n", blockIdx.x, threadIdx.x);
-
-	if (idx < noEntries) {
-		uint32_t hash = hashKey(newEntries[idx].key) % capacity;
-		uint32_t oldKey = atomicCAS(&(hashMap[hash].key), KEY_INVALID, newEntries[idx].key);
-
-		while(oldKey != KEY_INVALID && oldKey != newEntries[idx].key) {
-			hash = (hash + 1) % capacity;
-			oldKey = atomicCAS(&(hashMap[hash].key), KEY_INVALID, newEntries[idx].key);
-		}
-
-		if (oldKey == newEntries[idx].key) {
-			atomicAdd(updates, 1);
-		}
-
-		hashMap[hash].value = newEntries[idx].value;
-	}
-}
+#include "test_map.cpp"
