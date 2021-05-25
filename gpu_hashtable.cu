@@ -189,7 +189,6 @@ __global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int *upd
 	int oldKey;
 	bool inserted = false;
 	size_t hash;
-	Entry insertedEntry;
 	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if (idx > capacity)
@@ -198,8 +197,7 @@ __global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int *upd
 	}
 
 	// se calculeaza hashul initial
-	insertedEntry = newEntries[idx];
-	hash = hashKey(insertedEntry.key) % capacity;
+	hash = hashKey(newEntries[idx].key) % capacity;
 
 	// Se parcurg indecsii in ordine incepand de la `hash` si se cauta o pozitie
 	// libera sau pe care se afla aceeasi cheie (caz de update)
@@ -207,18 +205,18 @@ __global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int *upd
 	{
 		// Cheia veche se schimba cu cea noua doar daca aceasta era KEY_INVALID
 		// (0).
-		oldKey = atomicCAS(&hashMap[hash].key, KEY_INVALID, insertedEntry.key);
+		oldKey = atomicCAS(&hashMap[hash].key, KEY_INVALID, newEntries[idx].key);
 
 		// In situatia in care cheia era `KEY_INVALID` (locul era liber) sau era
 		// aceeasi cu noua cheie (update), valoarea se modifica
-		if (KEY_INVALID == oldKey || insertedEntry.key == oldKey)
+		if (KEY_INVALID == oldKey || newEntries[idx].key == oldKey)
 		{
-			if (oldKey == insertedEntry.key)
+			if (oldKey == newEntries[idx].key)
 			{
 				atomicAdd(updates, 1);
 			}
 
-			hashMap[hash].value = insertedEntry.value;
+			hashMap[hash].value = newEntries[idx].value;
 			inserted = true;
 		}
 	}
