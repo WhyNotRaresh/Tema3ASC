@@ -122,9 +122,10 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
 
 	entries += numKeys - (*keyUpdates);
 
-	glbGpuAllocator->_cudaFree(deviceEntries);
+	glbGpuAllocator->_cudaFree(deviceKeys);
 	cudaCheckError();
-	free(hostEntries);
+	glbGpuAllocator->_cudaFree(deviceValues);
+	cudaCheckError();
 
 	return true;
 }
@@ -194,6 +195,6 @@ __global__ void insertIntoHashMap(HashTable hashMap, int *keys, int *values, int
 			atomicAdd(updates, 1);
 		}
 
-		hashMap[hash].value = vales[idx];
+		hashMap[hash].value = values[idx];
 	}
 }
