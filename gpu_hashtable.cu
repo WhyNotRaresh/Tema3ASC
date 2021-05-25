@@ -113,14 +113,8 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
 	printf("B\n");
 	glbGpuAllocator->_cudaMalloc((void **) &deviceEntries, total_bytes);
 	cudaCheckError();
-	//cudaMemcpy(deviceEntries, hostEntries, total_bytes, cudaMemcpyHostToDevice);
-	
-	char *hostEntriesBytes = (char*) hostEntries;
-	char *deviceEntriesBytes = (char*) deviceEntries;
-	for (int i = 0; i < total_bytes; i++) {
-		cudaMemset(deviceEntriesBytes + i, hostEntriesBytes[i], 1);
-		cudaCheckError();
-	}
+	cudaMemcpy(deviceEntries, hostEntries, total_bytes, cudaMemcpyHostToDevice);
+	cudaCheckError();
 
 	printf("C\n");
 
@@ -131,7 +125,7 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
 
 	/* Number of updated keys */
 	int *keyUpdates;
-	glbGpuAllocator->_cudaMallocManaged((void **) &keyUpdates, sizeof(int));
+	glbGpuAllocator->_cudaMalloc((void **) &keyUpdates, sizeof(int));
 	cudaCheckError();
 
 	/* Inserting entries */
