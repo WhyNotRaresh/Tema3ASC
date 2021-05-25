@@ -102,6 +102,10 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
 	size_t total_bytes = numKeys * sizeof(Entry);
 
 	hostEntries = (Entry *) malloc(total_bytes);
+	if (hostEntries == NULL) {
+		return false;
+	}
+
 	for (int i = 0; i < numKeys; i++) {
 		hostEntries[i] = Entry(keys[i], values[i]);
 	}
@@ -122,6 +126,8 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
 	glbGpuAllocator->_cudaFree(deviceEntries);
 	cudaCheckError();
 	free(hostEntries);
+
+	return true;
 }
 
 /**
