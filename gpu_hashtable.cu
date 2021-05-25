@@ -27,7 +27,7 @@ __global__ void setHashMap(HashTable hashMap, Entry entry, int capacity);
 __global__ void reshapeHashMap(HashTable newHM, HashTable oldHM, int newCap, int oldCap);
 
 // Function for inserting into hashmap
-__global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int noEntries, int capacity);
+__global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int *updates int noEntries, int capacity);
 
 
 /******** HashMap Methods ********/
@@ -115,13 +115,18 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
 	cudaMemcpy(deviceEntries, hostEntries, total_bytes, cudaMemcpyHostToDevice);
 	cudaCheckError();
 
+	/* Number of updated keys */
+	int *keyUpdates;
+	glbGpuAllocator->_cudaMallocManaged((void **) &keyUpdates, sizeof(int));
+	cudaCheckError();
+
 	/* Inserting values */
-	insertIntoHashMap<<<blocks, threads>>>(hashMap, deviceEntries, numKeys, capacity);
+	insertIntoHashMap<<<blocks, threads>>>(hashMap, deviceEntries, keyUpdates, numKeys, capacity);
 
 	cudaDeviceSynchronize();
 	cudaCheckError();
 
-	entries += numKeys;
+	entries += numKeys - (*keyUpdates);
 
 	glbGpuAllocator->_cudaFree(deviceEntries);
 	cudaCheckError();
@@ -187,7 +192,7 @@ __global__ void reshapeHashMap(HashTable newHM, HashTable oldHM, int newCap, int
 	}
 }
 
-__global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int noEntries, int capacity) {
+__global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int *updates, int noEntries, int capacity) {
 	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if (idx < noEntries && idx < capacity) {
@@ -195,9 +200,13 @@ __global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int noEn
 
 		uint32_t oldKey;
 		do {
-			oldKey = atomicCAS(hashMap[hash].key, INVALID_KEY, newEntries[idx].key);
+			oldKey = atomicCAS(&(hashMap[hash].key), INVALID_KEY, newEntries[idx].key);
 			hash = (++hash) % capacity;
 		} while(oldKey != INVALID_KEY && oldKey != newEntries[idx].key);
+
+		if (oldKey == newEntry[idx].key) {
+			atomicInc(updates, -1);
+		}
 
 		hashMap[hash].value = newEntries[idx].value;
 	}
