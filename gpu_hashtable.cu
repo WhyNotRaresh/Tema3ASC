@@ -187,20 +187,25 @@ __global__ void reshapeHashMap(HashTable newHM, HashTable oldHM, int newCap, int
 
 __global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int *updates, int noEntries, int capacity) {
 	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+	bool inserted = false;
 
-	if (idx < noEntries && idx < capacity) {
+	if (idx < noEntries) {
 		uint32_t hash = hashKey(newEntries[idx].key) % capacity;
-		uint32_t oldKey = atomicCAS(&(hashMap[hash].key), KEY_INVALID, newEntries[idx].key);
-
-		while(oldKey != KEY_INVALID && oldKey != newEntries[idx].key) {
-			hash = (hash + 1) % capacity;
+		uint32_t oldKey;
+		
+		while(!inserted) {
 			oldKey = atomicCAS(&(hashMap[hash].key), KEY_INVALID, newEntries[idx].key);
+			
+			if (oldKey == KEY_INVALID || oldKey == newEntries[idx].key) {
+				inserted = true;
+				hashMap[hash].value = newEntries[idx].value;
+			}
+			
+			hash = (hash + 1) % capacity;
 		}
 
 		if (oldKey == newEntries[idx].key) {
 			atomicAdd(updates, 1);
 		}
-
-		hashMap[hash].value = newEntries[idx].value;
 	}
 }
