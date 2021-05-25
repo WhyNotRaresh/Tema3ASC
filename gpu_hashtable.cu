@@ -112,7 +112,7 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
 	cudaCheckError();
 
 	/* Reshaping HashMap */
-	if ((entries + numKeys) / ((float) capacity) >= 0.9f) {
+	if (((float) (entries + numKeys)) / ((float) capacity) >= 0.9f) {
 		printf("AAAAAAA");
 		this->reshape((int) ((entries + numKeys) / 0.8f));
 		printf("BBBBBBB");
