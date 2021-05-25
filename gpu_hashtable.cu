@@ -104,19 +104,16 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
 	if (hostEntries == NULL) {
 		return false;
 	}
-	printf("A\n");
 
 	for (int i = 0; i < numKeys; i++) {
 		hostEntries[i] = Entry(keys[i], values[i]);
 	}
 	
-	printf("B\n");
 	glbGpuAllocator->_cudaMalloc((void **) &deviceEntries, total_bytes);
 	cudaCheckError();
 	cudaMemcpy(deviceEntries, hostEntries, total_bytes, cudaMemcpyHostToDevice);
 	cudaCheckError();
 
-	printf("C\n");
 
 	/* Reshaping HashMap */
 	if ((entries + numKeys) / ((float) capacity) >= 0.9f) {
@@ -129,7 +126,6 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
 	cudaCheckError();
 
 	/* Inserting entries */
-	printf("D\n");
 	insertIntoHashMap<<<blocks, threads>>>(hashMap, deviceEntries, keyUpdates, numKeys, capacity);
 
 	cudaDeviceSynchronize();
@@ -151,7 +147,31 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
  * Gets a batch of key:value, using GPU
  */
 int* GpuHashTable::getBatch(int* keys, int numKeys) {
-	return NULL;
+	int blocks, threads;
+	getBlocksThreads(&blocks, &threads, numKeys);
+
+	int total_bytes = numKeys * sizeof(int);
+	
+	/* Keys to search for */
+	int *deviceKeys;
+	glbGpuAllocator->_cudaMalloc((void **) &deviceKeys, total_bytes);
+	cudaCheckError();
+	cudaMemcpy(deviceKeys, keys, total_bytes, cudaMemcpyHostToDevice);
+	cudaCheckError();
+
+	/* Values to be returned */
+	int *retValues;
+	glbGpuAllocator->_cudaMallocManaged((void **) &retValues, total_bytes);
+	cudaCheckError();
+
+	getFromHashMap<<<blocks, threads>>>(hashMap, deviceKeys, retValues, numKeys, capacity);
+	cudaDeviceSynchronize();
+	cudaCheckError();
+
+	glbGpuAllocator->_cudaFree((void *) deviceKeys);
+	cudaCheckError();
+
+	return retValues;
 }
 
 
@@ -218,7 +238,13 @@ __global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int *upd
 __global__ void getFromHashMap(HashTable hashMap, int *keys, int *retValues, int noKeys, int capacity) {
 	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-	if (idx < capacity) {
-		
+	if (idx < noKeys) {
+		uint32_t hash = hashKey(keys[idx]) % capacity;
+
+		while (hashMap[hash].key != keys[idx]) {
+			hash = (hash + 1) % capacity;
+		}
+
+		retValues[idx] = hashMap[hash].value;
 	}
 }
