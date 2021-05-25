@@ -192,7 +192,7 @@ __global__ void reshapeHashMap(HashTable newHM, HashTable oldHM, int newCap, int
 }
 
 __global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int *updates, int noEntries, int capacity) {
-	prinf("F\n");
+	printf("F\n");
 
 	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
 
