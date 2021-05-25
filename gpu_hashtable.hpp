@@ -14,12 +14,10 @@ using namespace std;
 /**
  * Hashmap entry type
  */
-#define INVALID_KEY		UINT32_MAX
-
 typedef struct Entry {
 	uint32_t key, value;
 
-	Entry() : key(INVALID_KEY), value(0) {}
+	Entry() : key(KEY_INVALID), value(0) {}
 	Entry(uint32_t k, uint32_t v) : key(k), value(v) {}
 } Entry, * HashTable;
 
