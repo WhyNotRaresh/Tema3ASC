@@ -113,7 +113,9 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
 
 	/* Reshaping HashMap */
 	if ((entries + numKeys) / ((float) capacity) >= 0.9f) {
+		prinf("AAAAAAA");
 		this->reshape((int) ((entries + numKeys) / 0.8f));
+		prinf("BBBBBBB");
 	}
 
 	/* Number of updated keys */
