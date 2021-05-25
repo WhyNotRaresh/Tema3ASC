@@ -120,12 +120,12 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
 
 	/* Reshaping HashMap */
 	if ((entries + numKeys) / ((float) capacity) >= 0.9f) {
-		this->reshape((int) ((entries + numKeys) / 0.8f));
+		reshape((int) ((entries + numKeys) / 0.8f));
 	}
 
 	/* Number of updated keys */
 	int *keyUpdates;
-	glbGpuAllocator->_cudaMalloc((void **) &keyUpdates, sizeof(int));
+	glbGpuAllocator->_cudaMallocManaged((void **) &keyUpdates, sizeof(int));
 	cudaCheckError();
 
 	/* Inserting entries */
