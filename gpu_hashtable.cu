@@ -27,7 +27,7 @@ __global__ void setHashMap(HashTable hashMap, Entry entry, int capacity);
 __global__ void reshapeHashMap(HashTable newHM, HashTable oldHM, int newCap, int oldCap);
 
 // Function for inserting into hashmap
-__global__ void insertIntoHashMap(HashTable hashMap, Entry *newElems, int noElems, int capacity);
+__global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int noEntries, int capacity);
 
 
 /******** HashMap Methods ********/
@@ -153,7 +153,7 @@ __device__ uint32_t hashKey(uint32_t key) {
 		key /= 10;
 	}
 
-	return hash;
+	return (uint32_t) hash;
 }
 
 __host__ void getBlocksThreads(int *blocks, int *threads, int entries) {
@@ -179,14 +179,26 @@ __global__ void reshapeHashMap(HashTable newHM, HashTable oldHM, int newCap, int
 	if (idx < oldCap && idx < oldCap && oldHM[idx].key != INVALID_KEY) {
 		uint32_t hash = hashKey(oldHM[idx].key) % newCap;
 
-		while(atomicCAS(&(newHM[idx].key), INVALID_KEY, oldHM[idx].key) == INVALID_KEY) {
+		while(atomicCAS(&(newHM[hash].key), INVALID_KEY, oldHM[idx].key) == INVALID_KEY) {
 			hash = (++hash) % newCap;
 		}
 
-		newHM[idx].value = oldHM[idx].value;
+		newHM[hash].value = oldHM[idx].value;
 	}
 }
 
-__global__ void insertIntoHashMap(HashTable hashMap, Entry *newElems, int noElems, int capacity) {
+__global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int noEntries, int capacity) {
 	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+	if (idx < noEntries && idx < capacity) {
+		uint32_t hash = hashKey(newEntries[idx].key) % capacity;
+
+		uint32_t oldKey;
+		do {
+			oldKey = atomicCAS(hashMap[hash].key, INVALID_KEY, newEntries[idx].key);
+			hash = (++hash) % capacity;
+		} while(oldKey != INVALID_KEY && oldKey != newEntries[idx].key);
+
+		hashMap[hash].value = newEntries[idx].value;
+	}
 }
