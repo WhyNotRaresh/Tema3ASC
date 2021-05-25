@@ -173,14 +173,6 @@ __host__ void getBlocksThreads(int *blocks, int *threads, int entries) {
 	*blocks = entries / (*threads) + ((entries % (*threads) == 0 ) ? 0 : 1);
 }
 
-__global__ void setHashMap(HashTable hashMap, Entry entry, int capacity) {
-	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-
-	if (idx < capacity) {
-		hashMap[idx] = entry;
-	}
-}
-
 __global__ void reshapeHashMap(HashTable newHM, HashTable oldHM, int newCap, int oldCap) {
 	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -202,10 +194,10 @@ __global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int *upd
 		uint32_t hash = hashKey(newEntries[idx].key) % capacity;
 		uint32_t oldKey = atomicCAS(&(hashMap[hash].key), KEY_INVALID, newEntries[idx].key);
 
-		while(oldKey != KEY_INVALID && oldKey != newEntries[idx].key) {
-			hash = (++hash) % capacity;
-			oldKey = atomicCAS(&(hashMap[hash].key), KEY_INVALID, newEntries[idx].key);
-		}
+		//while(oldKey != KEY_INVALID && oldKey != newEntries[idx].key) {
+		//	hash = (++hash) % capacity;
+		//	oldKey = atomicCAS(&(hashMap[hash].key), KEY_INVALID, newEntries[idx].key);
+		//}
 
 		if (oldKey == newEntries[idx].key) {
 			atomicAdd(updates, 1);
