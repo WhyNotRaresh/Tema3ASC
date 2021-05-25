@@ -112,10 +112,9 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
 	cudaCheckError();
 
 	/* Reshaping HashMap */
-	if (((float) (entries + numKeys)) / ((float) capacity) >= 0.9f) {
-		printf("AAAAAAA");
+	if ((entries + numKeys) / ((float) capacity) >= 0.9f) {
+		printf("A");
 		this->reshape((int) ((entries + numKeys) / 0.8f));
-		printf("BBBBBBB");
 	}
 
 	/* Number of updated keys */
@@ -124,6 +123,7 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
 	cudaCheckError();
 
 	/* Inserting values */
+	printf("B");
 	insertIntoHashMap<<<blocks, threads>>>(hashMap, deviceEntries, keyUpdates, numKeys, capacity);
 
 	cudaDeviceSynchronize();
