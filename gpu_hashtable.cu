@@ -15,7 +15,7 @@ using namespace std;
 
 
 // Function for Hashing 32-bit integer
-__device__ uint32_t hash(uint32_t key);
+__device__ uint32_t hashKey(uint32_t key);
 
 // Function to determine number of blocks and threads
 __host__ void getBlocksThreads(int *blocks, int *threads, int entries);
@@ -106,7 +106,7 @@ int* GpuHashTable::getBatch(int* keys, int numKeys) {
 /******** Defining Cuda Functions ********/
 
 
-__device__ uint32_t hash(uint32_t key) {
+__device__ uint32_t hashKey(uint32_t key) {
 	unsigned long hash = 5381;
 	int c;
 
@@ -141,7 +141,7 @@ __global__ void reshapeHashMap(HashTable newHM, HashTable oldHM, int newCap, int
 	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if (idx < oldCap && idx < oldCap && oldHM[idx].key != INVALID_KEY) {
-		uint32_t hash = hash(oldHM[idx].key) % newCap;
+		uint32_t hash = hashKey(oldHM[idx].key) % newCap;
 
 		while(atomicCAS(&(newHM[idx].key), INVALID_KEY, oldHM[idx].key) == INVALID_KEY) {
 			hash = (++hash) % newCap;
