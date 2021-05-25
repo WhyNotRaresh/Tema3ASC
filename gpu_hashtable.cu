@@ -27,7 +27,7 @@ __global__ void setHashMap(HashTable hashMap, Entry entry, int capacity);
 __global__ void reshapeHashMap(HashTable newHM, HashTable oldHM, int newCap, int oldCap);
 
 // Function for inserting into hashmap
-__global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int *updates int noEntries, int capacity);
+__global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int *updates, int noEntries, int capacity);
 
 
 /******** HashMap Methods ********/
@@ -204,8 +204,8 @@ __global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int *upd
 			hash = (++hash) % capacity;
 		} while(oldKey != INVALID_KEY && oldKey != newEntries[idx].key);
 
-		if (oldKey == newEntry[idx].key) {
-			atomicInc(updates, -1);
+		if (oldKey == newEntries[idx].key) {
+			atomicAdd(updates, 1);
 		}
 
 		hashMap[hash].value = newEntries[idx].value;
