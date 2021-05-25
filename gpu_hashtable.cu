@@ -124,7 +124,6 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
 
 	glbGpuAllocator->_cudaFree(deviceEntries);
 	cudaCheckError();
-	free(hostEntries);
 
 	return true;
 }
