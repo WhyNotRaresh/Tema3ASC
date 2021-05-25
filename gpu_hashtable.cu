@@ -125,6 +125,7 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
 	cudaCheckError();
 
 	/* Inserting values */
+	printf("D\n");
 	insertIntoHashMap<<<blocks, threads>>>(hashMap, deviceEntries, keyUpdates, numKeys, capacity);
 
 	cudaDeviceSynchronize();
@@ -133,6 +134,8 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
 	entries += numKeys - (*keyUpdates);
 
 	glbGpuAllocator->_cudaFree(deviceEntries);
+	cudaCheckError();
+	glbGpuAllocator->_cudaFree(keyUpdates);
 	cudaCheckError();
 	free(hostEntries);
 
@@ -191,7 +194,7 @@ __global__ void reshapeHashMap(HashTable newHM, HashTable oldHM, int newCap, int
 __global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int *updates, int noEntries, int capacity) {
 	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-	printf("hello from block %d thread %d", blockIdx.x, threadIdx.x);
+	printf("hello from block %d thread %d\n", blockIdx.x, threadIdx.x);
 
 	if (idx < noEntries) {
 		uint32_t hash = hashKey(newEntries[idx].key) % capacity;
