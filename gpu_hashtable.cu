@@ -21,10 +21,12 @@ __device__ uint32_t hashKey(uint32_t key);
 __host__ void getBlocksThreads(int *blocks, int *threads, int entries);
 
 // Function for reshaping hashmap
-__global__ void reshapeHashMap(HashTable newHM, HashTable oldHM, int newCap, int oldCap);
+static __global__ void reshapeHashMap(HashTable newHM, HashTable oldHM,
+	int newCap, int oldCap);
 
 // Function for inserting into hashmap
-__global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int *updates, int noEntries, int capacity);
+static __global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries,
+	int *updates, int noEntries, int capacity);
 
 
 /******** HashMap Methods ********/
@@ -177,7 +179,7 @@ __host__ void getBlocksThreads(int *blocks, int *threads, int entries) {
 	*blocks = entries / (*threads) + ((entries % (*threads) == 0 ) ? 0 : 1);
 }
 
-__global__ void reshapeHashMap(HashTable newHM, HashTable oldHM, int newCap, int oldCap) {
+static __global__ void reshapeHashMap(HashTable newHM, HashTable oldHM, int newCap, int oldCap) {
 	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if (idx < oldCap && idx < oldCap && oldHM[idx].key != KEY_INVALID) {
@@ -191,7 +193,7 @@ __global__ void reshapeHashMap(HashTable newHM, HashTable oldHM, int newCap, int
 	}
 }
 
-__global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int *updates, int noEntries, int capacity) {
+static __global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int *updates, int noEntries, int capacity) {
 	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
 
 	printf("hello from block %d thread %d\n", blockIdx.x, threadIdx.x);
