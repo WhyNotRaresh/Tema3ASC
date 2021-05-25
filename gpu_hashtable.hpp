@@ -17,7 +17,7 @@ using namespace std;
 typedef struct Entry {
 	uint32_t key, value;
 
-	Entry() : key(KEY_INVALID), value(0) {}
+	Entry() : key(0), value(0) {}
 	Entry(uint32_t k, uint32_t v) : key(k), value(v) {}
 } Entry, * HashTable;
 
