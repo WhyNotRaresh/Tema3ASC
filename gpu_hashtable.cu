@@ -24,7 +24,7 @@ __host__ void getBlocksThreads(int *blocks, int *threads, int entries);
 __global__ void reshapeHashMap(HashTable newHM, HashTable oldHM, int newCap, int oldCap);
 
 // Function for inserting into hashmap
-__global__ void insertIntoHashMap(HashTable hashMap, int *keys, int *values, int *updates, int noEntries, int capacity);
+__global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int *updates, int noEntries, int capacity);
 
 
 /******** HashMap Methods ********/
@@ -94,15 +94,25 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
 	getBlocksThreads(&blocks, &threads, numKeys);
 
 	/* Setting device entries */
-	int *deviceKeys, *deviceValues;
+	Entry *hostEntries, *deviceEntries;
+	size_t total_bytes = numKeys * sizeof(Entry);
 
-	glbGpuAllocator->_cudaMalloc((void **) &deviceKeys, numKeys * sizeof(int));
-	cudaCheckError();
-	glbGpuAllocator->_cudaMalloc((void **) &deviceValues, numKeys * sizeof(int));
-	cudaCheckError();
+	hostEntries = (Entry *) malloc(total_bytes);
+	if (hostEntries == NULL) {
+		return false;
+	}
+	printf("A\n");
 
-	cudaMemcpy(deviceKeys, keys, numKeys * sizeof(int), cudaMemcpyHostToDevice);
-	cudaMemcpy(deviceValues, values, numKeys * sizeof(int), cudaMemcpyHostToDevice);
+	for (int i = 0; i < numKeys; i++) {
+		hostEntries[i] = Entry(keys[i], values[i]);
+	}
+	
+	printf("B\n");
+	glbGpuAllocator->_cudaMalloc((void **) &deviceEntries, total_bytes);
+	cudaCheckError();
+	cudaMemcpy(deviceEntries, hostEntries, total_bytes, cudaMemcpyHostToDevice);
+	cudaCheckError();
+	printf("C\n");
 
 	/* Reshaping HashMap */
 	if ((entries + numKeys) / ((float) capacity) >= 0.9f) {
@@ -115,17 +125,16 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
 	cudaCheckError();
 
 	/* Inserting values */
-	insertIntoHashMap<<<blocks, threads>>>(hashMap, deviceKeys, deviceValues, keyUpdates, numKeys, capacity);
+	insertIntoHashMap<<<blocks, threads>>>(hashMap, deviceEntries, keyUpdates, numKeys, capacity);
 
 	cudaDeviceSynchronize();
 	cudaCheckError();
 
 	entries += numKeys - (*keyUpdates);
 
-	glbGpuAllocator->_cudaFree(deviceKeys);
+	glbGpuAllocator->_cudaFree(deviceEntries);
 	cudaCheckError();
-	glbGpuAllocator->_cudaFree(deviceValues);
-	cudaCheckError();
+	free(hostEntries);
 
 	return true;
 }
@@ -179,22 +188,24 @@ __global__ void reshapeHashMap(HashTable newHM, HashTable oldHM, int newCap, int
 	}
 }
 
-__global__ void insertIntoHashMap(HashTable hashMap, int *keys, int *values, int *updates, int noEntries, int capacity) {
+__global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int *updates, int noEntries, int capacity) {
 	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-	if (idx < noEntries) {
-		uint32_t hash = hashKey(keys[idx]) % capacity;
-		int oldKey = atomicCAS(&(hashMap[hash].key), KEY_INVALID, keys[idx]);
+	printf("hello from block %d thread %d", blockIdx.x, threadIdx.x);
 
-		while(oldKey != KEY_INVALID && oldKey != keys[idx]) {
+	if (idx < noEntries) {
+		uint32_t hash = hashKey(newEntries[idx].key) % capacity;
+		uint32_t oldKey = atomicCAS(&(hashMap[hash].key), KEY_INVALID, newEntries[idx].key);
+
+		while(oldKey != KEY_INVALID && oldKey != newEntries[idx].key) {
 			hash = (hash + 1) % capacity;
-			oldKey = atomicCAS(&(hashMap[hash].key), KEY_INVALID, keys[idx]);
+			oldKey = atomicCAS(&(hashMap[hash].key), KEY_INVALID, newEntries[idx].key);
 		}
 
-		if (oldKey == keys[idx]) {
+		if (oldKey == newEntries[idx].key) {
 			atomicAdd(updates, 1);
 		}
 
-		hashMap[hash].value = values[idx];
+		hashMap[hash].value = newEntries[idx].value;
 	}
 }
