@@ -21,10 +21,10 @@ __device__ uint32_t hash(uint32_t key);
 __host__ void getBlocksThreads(int *blocks, int *threads, int entries);
 
 // Function sets all hashmap entries to the given one
-__global__ void setHashMap(HashMap hashMap, Entry entry, int capacity);
+__global__ void setHashMap(HashTable hashMap, Entry entry, int capacity);
 
 // Function for reshaping hashmap
-__global__ void reshapeHashMap(HashMap newHM, HashMap oldHM, int newCap, int oldCap);
+__global__ void reshapeHashMap(HashTable newHM, HashTable oldHM, int newCap, int oldCap);
 
 
 /******** HashMap Methods ********/
@@ -64,7 +64,7 @@ void GpuHashTable::reshape(int numBucketsReshape) {
 	int blocks, threads;
 
 	/* Alloccing new hashmap */
-	HashMap newHashMap;
+	HashTable newHashMap;
 	size_t total_bytes =  numBucketsReshape * sizeof(Entry);
 
 	glbGpuAllocator->_cudaMalloc((void **) &newHashMap, total_bytes);
@@ -129,7 +129,7 @@ __host__ void getBlocksThreads(int *blocks, int *threads, int entries) {
 	*blocks = entries / (*threads) + ((entries % (*threads) == 0 ) ? 0 : 1);
 }
 
-__global__ void setHashMap(HashMap hashMap, Entry entry, int capacity) {
+__global__ void setHashMap(HashTable hashMap, Entry entry, int capacity) {
 	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if (idx < capacity) {
@@ -137,12 +137,16 @@ __global__ void setHashMap(HashMap hashMap, Entry entry, int capacity) {
 	}
 }
 
-__global__ void reshapeHashMap(HashMap newHM, HashMap oldHM, int newCap, int oldCap) {
+__global__ void reshapeHashMap(HashTable newHM, HashTable oldHM, int newCap, int oldCap) {
 	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-	if (idx > oldCap) {
-		return;
-	}
+	if (idx < oldCap && idx < oldCap && oldHM[idx].key != INVALID_KEY) {
+		uint32_t hash = hash(oldHM[idx].key) % newCap;
 
-	// TODO
+		while(atomicCAS(&(newHM[idx].key), INVALID_KEY, oldHM[idx].key) == INVALID_KEY) {
+			hash = (++hash) % newCap;
+		}
+
+		newHM[idx].value = oldHM[idx].value;
+	}
 }

@@ -21,7 +21,7 @@ typedef struct Entry {
 
 	Entry() : key(INVALID_KEY), value(0) {}
 	Entry(uint32_t k, uint32_t v) : key(k), value(v) {}
-} Entry, * HashMap;
+} Entry, * HashTable;
 
 /**
  * Class GpuHashTable to implement functions
@@ -29,7 +29,7 @@ typedef struct Entry {
 class GpuHashTable
 {
 private: 
-	HashMap hashMap;
+	HashTable hashMap;
 	int capacity;
 	int entries;
 
