@@ -114,8 +114,14 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
 	glbGpuAllocator->_cudaMalloc((void **) &deviceEntries, total_bytes);
 	cudaCheckError();
 	//cudaMemcpy(deviceEntries, hostEntries, total_bytes, cudaMemcpyHostToDevice);
-	cudaMemset(deviceEntries, 0, total_bytes);
-	cudaCheckError();
+	
+	char *hostEntriesBytes = (char*) hostEntries;
+	char *deviceEntriesBytes = (char*) deviceEntries;
+	for (int i = 0; i < total_bytes; i++) {
+		cudaMemset(deviceEntriesBytes + i, hostEntriesBytes[i], 1);
+		cudaCheckError();
+	}
+
 	printf("C\n");
 
 	/* Reshaping HashMap */
