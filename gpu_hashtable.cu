@@ -122,12 +122,10 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
 	cudaCheckError();
 
 	/* Inserting values */
-	printf("%d, %d for %d\n", blocks, threads, numKeys);
 	insertIntoHashMap<<<blocks, threads>>>(hashMap, deviceEntries, keyUpdates, numKeys, capacity);
 
 	cudaDeviceSynchronize();
 	cudaCheckError();
-	printf("updates: %d\n", *keyUpdates);
 
 	entries += numKeys - (*keyUpdates);
 
@@ -180,7 +178,7 @@ __global__ void reshapeHashMap(HashTable newHM, HashTable oldHM, int newCap, int
 		uint32_t hash = hashKey(oldHM[idx].key) % newCap;
 
 		while(atomicCAS(&(newHM[hash].key), KEY_INVALID, oldHM[idx].key) == KEY_INVALID) {
-			hash = (++hash) % newCap;
+			hash = (hash + 1) % newCap;
 		}
 
 		newHM[hash].value = oldHM[idx].value;
@@ -194,10 +192,10 @@ __global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int *upd
 		uint32_t hash = hashKey(newEntries[idx].key) % capacity;
 		uint32_t oldKey = atomicCAS(&(hashMap[hash].key), KEY_INVALID, newEntries[idx].key);
 
-		//while(oldKey != KEY_INVALID && oldKey != newEntries[idx].key) {
-		//	hash = (++hash) % capacity;
-		//	oldKey = atomicCAS(&(hashMap[hash].key), KEY_INVALID, newEntries[idx].key);
-		//}
+		while(oldKey != KEY_INVALID && oldKey != newEntries[idx].key) {
+			hash = (hash + 1) % capacity;
+			oldKey = atomicCAS(&(hashMap[hash].key), KEY_INVALID, newEntries[idx].key);
+		}
 
 		if (oldKey == newEntries[idx].key) {
 			atomicAdd(updates, 1);
