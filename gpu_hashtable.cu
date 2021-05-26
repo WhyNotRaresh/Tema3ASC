@@ -102,8 +102,7 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
 	cudaCheckError();
 
 	for (int i = 0; i < numKeys; i++) {
-		newEntries[i] = Entry(keys[i], values[i]);
-		printf("<%d -> %d> == <%d -> %d>", keys[i], values[i], newEntries[i].key, newEntries[i].value);
+		newEntries[i] = Entry(keys[i], values[i]);	
 	}
 
 	/* Reshaping HashMap */
