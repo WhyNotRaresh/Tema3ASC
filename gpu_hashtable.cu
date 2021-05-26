@@ -205,9 +205,9 @@ __global__ void reshapeHashMap(HashTable newHM, HashTable oldHM, int newCap, int
 __global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int *updates, int noEntries, int capacity) {
 	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-	printf("<%d %d>\n", blockIdx.x, threadIdx.x);
-
 	if (idx < noEntries) {
+		printf("<%d %d>\n", blockIdx.x, threadIdx.x);
+
 		uint32_t hash = hashKey(newEntries[idx].key) % capacity;
 		uint32_t oldKey = atomicCAS(&(hashMap[hash].key), KEY_INVALID, newEntries[idx].key);
 
