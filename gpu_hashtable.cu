@@ -115,6 +115,7 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
 	cudaCheckError();
 
 	/* Inserting entries */
+	printf("before insert\n");
 	insertIntoHashMap<<<blocks, threads>>>(hashMap, newEntries, keyUpdates, numKeys, capacity);
 	cudaDeviceSynchronize();
 	cudaCheckError();
