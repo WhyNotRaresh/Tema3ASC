@@ -24,27 +24,7 @@ __host__ void getBlocksThreads(int *blocks, int *threads, int entries);
 __global__ void reshapeHashMap(HashTable newHM, HashTable oldHM, int newCap, int oldCap);
 
 // Function for inserting into hashmap
-static __global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int *updates, int noEntries, int capacity) {
-	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-
-	if (idx < noEntries) {
-		printf("<%d %d>\n", blockIdx.x, threadIdx.x);
-
-		uint32_t hash = hashKey(newEntries[idx].key) % capacity;
-		uint32_t oldKey = atomicCAS(&(hashMap[hash].key), KEY_INVALID, newEntries[idx].key);
-
-		while(oldKey != KEY_INVALID && oldKey != newEntries[idx].key) {
-			hash = (hash + 1) % capacity;
-			oldKey = atomicCAS(&(hashMap[hash].key), KEY_INVALID, newEntries[idx].key);
-		}
-
-		if (oldKey == newEntries[idx].key) {
-			atomicAdd(updates, 1);
-		}
-
-		hashMap[hash].value = newEntries[idx].value;
-	}
-}
+__global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int *updates, int noEntries, int capacity);
 
 // Function for searching the hashmap
 __global__ void getFromHashMap(HashTable hashMap, int *keys, int *retValues, int noKeys, int capacity);
@@ -135,7 +115,6 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
 	cudaCheckError();
 
 	/* Inserting entries */
-	printf("before insert\n");
 	insertIntoHashMap<<<blocks, threads>>>(hashMap, newEntries, keyUpdates, numKeys, capacity);
 	cudaDeviceSynchronize();
 	cudaCheckError();
@@ -220,6 +199,26 @@ __global__ void reshapeHashMap(HashTable newHM, HashTable oldHM, int newCap, int
 		}
 
 		newHM[hash].value = oldHM[idx].value;
+	}
+}
+
+__global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int *updates, int noEntries, int capacity) {
+	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+	if (idx < noEntries) {
+		uint32_t hash = hashKey(newEntries[idx].key) % capacity;
+		uint32_t oldKey = atomicCAS(&(hashMap[hash].key), KEY_INVALID, newEntries[idx].key);
+
+		while(oldKey != KEY_INVALID && oldKey != newEntries[idx].key) {
+			hash = (hash + 1) % capacity;
+			oldKey = atomicCAS(&(hashMap[hash].key), KEY_INVALID, newEntries[idx].key);
+		}
+
+		if (oldKey == newEntries[idx].key) {
+			atomicAdd(updates, 1);
+		}
+
+		hashMap[hash].value = newEntries[idx].value;
 	}
 }
 
