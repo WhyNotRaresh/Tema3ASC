@@ -103,6 +103,7 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
 
 	for (int i = 0; i < numKeys; i++) {
 		newEntries[i] = Entry(keys[i], values[i]);
+		printf("<%d -> %d> == <%d -> %d>", keys[i], values[i], newEntries[i].key, newEntries[i].value);
 	}
 
 	/* Reshaping HashMap */
