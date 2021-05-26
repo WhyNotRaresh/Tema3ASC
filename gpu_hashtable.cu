@@ -97,23 +97,13 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
 	getBlocksThreads(&blocks, &threads, numKeys);
 
 	/* Setting device entries */
-	Entry *hostEntries, *deviceEntries;
-	size_t total_bytes = numKeys * sizeof(Entry);
-
-	hostEntries = (Entry *) malloc(total_bytes);
-	if (hostEntries == NULL) {
-		return false;
-	}
+	Entry *newEntries;
+	glbGpuAllocator->_cudaMallocManaged((void **) &newEntries, numKeys * sizeof(Entry));
+	cudaCheckError();
 
 	for (int i = 0; i < numKeys; i++) {
-		hostEntries[i] = Entry(keys[i], values[i]);
+		newEntries[i] = Entry();
 	}
-	
-	glbGpuAllocator->_cudaMalloc((void **) &deviceEntries, total_bytes);
-	cudaCheckError();
-	cudaMemcpy(deviceEntries, hostEntries, total_bytes, cudaMemcpyHostToDevice);
-	cudaCheckError();
-
 
 	/* Reshaping HashMap */
 	if ((entries + numKeys) / ((float) capacity) >= 0.9f) {
@@ -126,18 +116,17 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
 	cudaCheckError();
 
 	/* Inserting entries */
-	insertIntoHashMap<<<blocks, threads>>>(hashMap, deviceEntries, keyUpdates, numKeys, capacity);
+	insertIntoHashMap<<<blocks, threads>>>(hashMap, newEntries, keyUpdates, numKeys, capacity);
 
 	cudaDeviceSynchronize();
 	cudaCheckError();
 
 	entries += numKeys - (*keyUpdates);
 
-	glbGpuAllocator->_cudaFree(deviceEntries);
+	glbGpuAllocator->_cudaFree(newEntries);
 	cudaCheckError();
 	glbGpuAllocator->_cudaFree(keyUpdates);
 	cudaCheckError();
-	free(hostEntries);
 
 	return true;
 }
