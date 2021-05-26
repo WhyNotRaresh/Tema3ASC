@@ -64,6 +64,7 @@ GpuHashTable::~GpuHashTable() {
  */
 void GpuHashTable::reshape(int numBucketsReshape) {
 	int blocks, threads;
+	getBlocksThreads(&blocks, &threads, capacity);
 
 	/* Alloccing new hashmap */
 	HashTable newHashMap;
@@ -76,8 +77,6 @@ void GpuHashTable::reshape(int numBucketsReshape) {
 	cudaCheckError();
 
 	/* Writing to new hashmap */
-	getBlocksThreads(&blocks, &threads, capacity);
-
 	reshapeHashMap<<<blocks, threads>>>(newHashMap, hashMap, numBucketsReshape, capacity);
 	cudaDeviceSynchronize();
 	cudaCheckError();
@@ -117,7 +116,6 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
 
 	/* Inserting entries */
 	insertIntoHashMap<<<blocks, threads>>>(hashMap, newEntries, keyUpdates, numKeys, capacity);
-
 	cudaDeviceSynchronize();
 	cudaCheckError();
 
@@ -206,6 +204,8 @@ __global__ void reshapeHashMap(HashTable newHM, HashTable oldHM, int newCap, int
 
 __global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int *updates, int noEntries, int capacity) {
 	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+	printf("<%d %d>\n", blockIdx.x, threadIdx.x);
 
 	if (idx < noEntries) {
 		uint32_t hash = hashKey(newEntries[idx].key) % capacity;
