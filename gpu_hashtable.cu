@@ -102,12 +102,12 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
 	cudaCheckError();
 
 	for (int i = 0; i < numKeys; i++) {
-		newEntries[i] = Entry();
+		newEntries[i] = Entry(keys[i], vlaues[i]);
 	}
 
 	/* Reshaping HashMap */
 	if ((entries + numKeys) / ((float) capacity) >= 0.9f) {
-		reshape((int) ((entries + numKeys) / 0.8f));
+		reshape((int) ((entries + numKeys) / 0.7f));
 	}
 
 	/* Number of updated keys */
