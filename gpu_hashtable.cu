@@ -96,13 +96,13 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
 	int blocks, threads;
 	getBlocksThreads(&blocks, &threads, numKeys);
 
-	/* Setting device entries */
+	/* Setting new entries */
 	Entry *newEntries;
 	glbGpuAllocator->_cudaMallocManaged((void **) &newEntries, numKeys * sizeof(Entry));
 	cudaCheckError();
 
 	for (int i = 0; i < numKeys; i++) {
-		newEntries[i] = Entry(keys[i], vlaues[i]);
+		newEntries[i] = Entry(keys[i], values[i]);
 	}
 
 	/* Reshaping HashMap */
