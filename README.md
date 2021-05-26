@@ -32,6 +32,12 @@ Functia salveaza numarul de threaduri, aflat din proprietatiile deviceului. Apoi
 
 ### Insert, Get si Reshape
 
+Fiecare metoda a clasei de HashTable apeleaza o functie CUDA kernel pentru divizara cantitatii de munca.
+
+Toate cele 3 functii de kernel obtin idul prin ```size_t idx = blockIdx.x * blockDim.x + threadIdx.x;``` si aplica metoda de 'linear probing' pentru inserare/gasirea valorilor.
+
+Pentru inserarea de noi valori (la Insert si Reshape), pentru a insera cheia folosesc operatii atomice pentru a ma asigura ca nu exista probleme de sincronizare a threadurilor.
+
 Implementare
 -
 
