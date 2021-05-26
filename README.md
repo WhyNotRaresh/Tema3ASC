@@ -1,7 +1,7 @@
 Nume: Badita Rares Octavian
 Grupa: 333CB
 
-# Tema 2 Sisteme de Operare
+# Tema 3 Arhitectura Sistemelor de Calcul
 
 Organizare
 -
@@ -18,13 +18,16 @@ Pentru gasirea/inserarea unei valori in hashtable se foloseste metoda 'linear pr
 ### Functia de Hash
 
 Functia de hash este updatata dupa cea de pe acest [link](http://www.cse.yorku.ca/~oz/hash.html) care calculeaza hashul pentru un string.
+
 Functia updatat imi calculeaz hashul cu formula ```hash = hash * 33 + c``` unde hash este initializat cu 5381 si c este fiecare cifra a numarului luata pe rand.
 Astfel pentru 125, de exemplu, hashul este egal cu ((5381) * 33 + 5) * 33 + 2) * 33 + 1.
+
 Calculul se face in O(1) pentru ca un unsigned int are maxim 10 cifre, deci numarul de operatii este limitat.
 
 ### Blocks si Threads
 
-Pentru apelarea functiilor de CUDA kernel, folosesc functia ```__host__ void getBlocksThreads(int *blocks, int *threads, int entries)```.
+Pentru apelarea functiilor de CUDA kernel, folosesc functia ```__host__ void getBlocksThreads(int *blocks, int *threads, int entries)``` pentru a gasi numarul de blockuri si threaduri.
+
 Functia salveaza numarul de threaduri, aflat din proprietatiile deviceului. Apoi, in functie de numarul de structuri ```Entry``` ce vor fi prelucrate, se calculeaza si numarul de blockuri.
 
 ### Insert, Get si Reshape
