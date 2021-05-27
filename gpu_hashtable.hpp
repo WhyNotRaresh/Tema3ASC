@@ -19,6 +19,14 @@ typedef struct Entry {
 
 	Entry() : key(0), value(0) {}
 	Entry(uint32_t k, uint32_t v) : key(k), value(v) {}
+
+	inline bool operator==(const Entry& other) {
+		return other.key == key;
+	}
+
+	inline bool operator!=(const Entry& other) {
+		return !(other.key == key);
+	}
 } Entry, * HashTable;
 
 /**

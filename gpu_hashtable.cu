@@ -207,18 +207,16 @@ __global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int *upd
 
 	if (idx < noEntries) {
 		uint32_t hash = hashKey(newEntries[idx].key) % capacity;
-		uint32_t oldKey = atomicCAS(&(hashMap[hash].key), KEY_INVALID, newEntries[idx].key);
+		Entry hm_Entry = atomicCAS(&(hashMap[hash]), {KEY_INVALID, 0}, newEntries[idx]);
 
-		while(oldKey != KEY_INVALID && oldKey != newEntries[idx].key) {
+		while(hm_Entry.key != KEY_INVALID && hm_Entry != newEntries[idx]) {
 			hash = (hash + 1) % capacity;
-			oldKey = atomicCAS(&(hashMap[hash].key), KEY_INVALID, newEntries[idx].key);
+			hm_Entry = atomicCAS(&(hashMap[hash]), {KEY_INVALID, 0}, newEntries[idx]);
 		}
 
-		if (oldKey == newEntries[idx].key) {
+		if (hm_Entry.key == newEntries[idx].key) {
 			atomicAdd(updates, 1);
 		}
-
-		hashMap[hash].value = newEntries[idx].value;
 	}
 }
 
