@@ -38,17 +38,38 @@ Toate cele 3 functii de kernel obtin idul prin ```size_t idx = blockIdx.x * bloc
 
 Pentru inserarea de noi valori (la Insert si Reshape) folosesc operatii atomice pentru a ma asigura ca nu exista probleme de sincronizare a threadurilor.
 
+#### Insert:
+
+Aloca cu ```cudaMallocManaged``` un vector de structuri ```Entry``` pentru care seteaza valorile din cei 2 vectori de chei si valori.
+
+Daca numarul de intari in hashmap insumat cu numarul de chei noi depaseste 90% din capacitatea hashmap-ului, atunci este apelata functia de reshape, inaintea apelului functiei de kernel.
+
+De asemenea, functia de kernel calculeaza si numarulde chei updatate, nu inserate, pentru a inregistra corect numarul de intrari ocupate in hashmap (variabila ```keyUpdates```).
+In final, numarul de intrai ocupate este egal cu ```entries += numKeys - keyUpdates```.
+
+
+#### Get:
+
+Aloc un vector pentru functia de kernel si copiez cheile primite ca input.
+
+Vectorul de valori obtinute este alocat cu ```cudaMallocManaged```.
+
+#### Reshape:
+
+Aloc noul hashmap cu dimensiunea egala cu ```numBucketsReshape```, apoi apelez functia de kernel care face un insert pentru toate elementele vechiului hashmap.
+
 Implementare
 -
 
 * Tema este realizata integral.
-
+* Tema imi da punctaj maxim pe coada ibm, dar pe coada hp se blocheaza de la testul 2.
 
 Resurse Utile
 -
 
 * [Functia de hash](http://www.cse.yorku.ca/~oz/hash.html) folosita.
 * [Functii CUDA](https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__MEMORY.html#group__CUDART__MEMORY_1gc263dbe6574220cc776b45438fc351e8).
+* [Diferenta intre functile](https://stackoverflow.com/questions/12373940/difference-between-global-and-device-functions#:~:text=Global%20functions%20are%20also%20called%20%22kernels%22.&text=Device%20functions%20can%20only%20be,be%20called%20from%20host%20code.) __host__, __device__ si __global__.
 
 [Github](https://github.com/WhyNotRaresh/Team3ASC)
 -
