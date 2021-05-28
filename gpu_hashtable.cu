@@ -111,7 +111,7 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
 
 	/* Number of updated keys */
 	int *keyUpdates;
-	//glbGpuAllocator->_cudaMallocManaged((void **) &keyUpdates, sizeof(int));
+	glbGpuAllocator->_cudaMallocManaged((void **) &keyUpdates, sizeof(int));
 	cudaCheckError();
 
 	/* Inserting entries */
@@ -214,9 +214,9 @@ __global__ void insertIntoHashMap(HashTable hashMap, Entry *newEntries, int *upd
 			oldKey = atomicCAS(&(hashMap[hash].key), KEY_INVALID, newEntries[idx].key);
 		}
 
-		/*if (oldKey == newEntries[idx].key) {
+		if (oldKey == newEntries[idx].key) {
 			atomicAdd(updates, 1);
-		}*/
+		}
 
 		hashMap[hash].value = newEntries[idx].value;
 	}
