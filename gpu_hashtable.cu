@@ -228,7 +228,7 @@ __global__ void getFromHashMap(HashTable hashMap, int *keys, int *retValues, int
 	if (idx < noKeys) {
 		uint32_t hash = hashKey(keys[idx]) % capacity;
 
-		while (hashMap[hash].key != keys[idx]) {
+		while (hashMap[hash].key != keys[idx] && hashMap[hash].key != KEY_INVALID) {
 			hash = (hash + 1) % capacity;
 		}
 
