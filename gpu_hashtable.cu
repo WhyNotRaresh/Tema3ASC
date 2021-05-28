@@ -111,7 +111,7 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
 
 	/* Number of updated keys */
 	int *keyUpdates;
-	glbGpuAllocator->_cudaMallocManaged((void **) &keyUpdates, sizeof(int));
+	//glbGpuAllocator->_cudaMallocManaged((void **) &keyUpdates, sizeof(int));
 	cudaCheckError();
 
 	/* Inserting entries */
