@@ -44,10 +44,10 @@ GpuHashTable::GpuHashTable(int size)
 	size_t total_bytes = this->capacity * sizeof(Entry);
 
 	glbGpuAllocator->_cudaMalloc((void **) &hashMap, total_bytes);
-	cudaCheckError();
+	//cudaCheckError();
 
 	cudaMemset((void *) hashMap, 0, total_bytes);
-	cudaCheckError();
+	//cudaCheckError();
 }
 
 /**
@@ -55,7 +55,7 @@ GpuHashTable::GpuHashTable(int size)
  */
 GpuHashTable::~GpuHashTable() {
 	glbGpuAllocator->_cudaFree((void *) hashMap);
-	cudaCheckError();
+	//cudaCheckError();
 }
 
 /**
@@ -71,18 +71,18 @@ void GpuHashTable::reshape(int numBucketsReshape) {
 	size_t total_bytes =  numBucketsReshape * sizeof(Entry);
 
 	glbGpuAllocator->_cudaMalloc((void **) &newHashMap, total_bytes);
-	cudaCheckError();
+	//cudaCheckError();
 
 	cudaMemset((void *) newHashMap, 0, total_bytes);
-	cudaCheckError();
+	//cudaCheckError();
 
 	/* Writing to new hashmap */
 	reshapeHashMap<<<blocks, threads>>>(newHashMap, hashMap, numBucketsReshape, capacity);
 	cudaDeviceSynchronize();
-	cudaCheckError();
+	//cudaCheckError();
 	
 	glbGpuAllocator->_cudaFree((void *) hashMap);
-	cudaCheckError();
+	//cudaCheckError();
 	hashMap = newHashMap;
 	capacity = numBucketsReshape;
 }
@@ -98,7 +98,7 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
 	/* Setting new entries */
 	Entry *newEntries;
 	glbGpuAllocator->_cudaMallocManaged((void **) &newEntries, numKeys * sizeof(Entry));
-	cudaCheckError();
+	//cudaCheckError();
 
 	for (int i = 0; i < numKeys; i++) {
 		newEntries[i] = Entry(keys[i], values[i]);	
@@ -112,19 +112,19 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
 	/* Number of updated keys */
 	int *keyUpdates;
 	glbGpuAllocator->_cudaMallocManaged((void **) &keyUpdates, sizeof(int));
-	cudaCheckError();
+	//cudaCheckError();
 
 	/* Inserting entries */
 	insertIntoHashMap<<<blocks, threads>>>(hashMap, newEntries, keyUpdates, numKeys, capacity);
 	cudaDeviceSynchronize();
-	cudaCheckError();
+	//cudaCheckError();
 
 	entries += numKeys - (*keyUpdates);
 
 	glbGpuAllocator->_cudaFree(newEntries);
-	cudaCheckError();
+	//cudaCheckError();
 	glbGpuAllocator->_cudaFree(keyUpdates);
-	cudaCheckError();
+	//cudaCheckError();
 
 	return true;
 }
@@ -142,21 +142,21 @@ int* GpuHashTable::getBatch(int* keys, int numKeys) {
 	/* Keys to search for */
 	int *deviceKeys;
 	glbGpuAllocator->_cudaMalloc((void **) &deviceKeys, total_bytes);
-	cudaCheckError();
+	//cudaCheckError();
 	cudaMemcpy(deviceKeys, keys, total_bytes, cudaMemcpyHostToDevice);
-	cudaCheckError();
+	//cudaCheckError();
 
 	/* Values to be returned */
 	int *retValues;
 	glbGpuAllocator->_cudaMallocManaged((void **) &retValues, total_bytes);
-	cudaCheckError();
+	//cudaCheckError();
 
 	getFromHashMap<<<blocks, threads>>>(hashMap, deviceKeys, retValues, numKeys, capacity);
 	cudaDeviceSynchronize();
-	cudaCheckError();
+	//cudaCheckError();
 
 	glbGpuAllocator->_cudaFree((void *) deviceKeys);
-	cudaCheckError();
+	//cudaCheckError();
 
 	return retValues;
 }
@@ -182,7 +182,7 @@ __device__ uint32_t hashKey(uint32_t key) {
 __host__ void getBlocksThreads(int *blocks, int *threads, int entries) {
 	cudaDeviceProp devProps;
 	cudaGetDeviceProperties(&devProps, 0);
-	cudaCheckError();
+	//cudaCheckError();
 
 	*threads = devProps.maxThreadsPerBlock;
 	*blocks = entries / (*threads) + ((entries % (*threads) == 0 ) ? 0 : 1);
